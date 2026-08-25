@@ -1,388 +1,149 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>驗票紀錄查詢系統</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>班次驗票紀錄查詢</title>
   <style>
     :root {
-      --primary: #2563eb;
-      --primary-light: #eff6ff;
-      --bg: #f8fafc;
+      --primary: #b45309;
+      --primary-light: #fffbeb;
+      --bg: #fcfaf8;
       --surface: #ffffff;
-      --border: #e2e8f0;
-      --text: #0f172a;
-      --sub: #64748b;
-      
-      --normal-bg: #ffffff;
-      --normal-border: #e2e8f0;
-      --normal-text: #1e293b;
-      
-      --luggage-bg: #f5f3ff;
-      --luggage-border: #ddd6fe;
-      --luggage-text: #6d28d9;
-      
-      --qr-bg: #f0fdf4;
-      --qr-border: #bbf7d0;
-      --qr-text: #15803d;
-
-      --empty-bg: #fffbeb;
-      --empty-border: #fde68a;
-      --empty-text: #b45309;
+      --border: #e7e5e4;
+      --text: #1c1917;
+      --sub: #78716c;
+      --row-hover: #f5f5f4;
     }
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; touch-action: manipulation; }
-    body { margin: 0; padding: 12px; background: var(--bg); color: var(--text); user-select: none; }
-    
-    .card { background: var(--surface); padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 12px; border: 1px solid var(--border); }
-    .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: bold; }
-    .status-badge.loading { background: #fef3c7; color: #b45309; }
-    .status-badge.ready { background: #d1fae5; color: #065f46; }
-    .status-badge.error { background: #fee2e2; color: #b91c1c; }
 
-    label { font-size: 13px; font-weight: bold; color: var(--sub); display: block; margin-bottom: 4px; }
-    input[type="text"], input[type="date"], input[type="password"] { width: 100%; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; font-weight: bold; }
-    
-    .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
-    .search-box { flex: 1; font-family: monospace; }
-    .search-result-box { background: #f8fafc; border: 1.5px dashed var(--primary); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
-    .result-item { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
-    .result-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
-    .result-val { font-weight: bold; color: var(--text); }
-    
-    .route-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-    .route-btn { background: #f1f5f9; color: #334155; font-size: 15px; font-weight: bold; border: 1.5px solid transparent; border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-    .route-btn.active { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
-    .route-btn:active { transform: scale(0.97); }
-    
-    .trip-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-    .trip-item { background: #fff; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-    .trip-item:active { background: var(--primary-light); border-color: var(--primary); }
-    .trip-title { font-size: 16px; font-weight: bold; }
-    .trip-count-badge { font-size: 14px; font-weight: 800; color: var(--primary); background: #f1f5f9; padding: 4px 8px; border-radius: 6px; }
+    body.dark-mode {
+      --primary: #fbbf24;
+      --primary-light: #292524;
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --border: #333333;
+      --text: #f5f5f4;
+      --sub: #a8a29e;
+      --row-hover: #262626;
+    }
 
-    .overview-board { background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
-    .overview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 8px; }
-    .overview-cell { background: #fff; padding: 8px 4px; border-radius: 6px; border: 1px solid var(--border); }
-    .overview-val { font-size: 18px; font-weight: bold; }
-    .overview-lbl { font-size: 11px; color: var(--sub); }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); transition: background 0.3s, color 0.3s; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    .card { background: var(--surface); padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid var(--border); transition: background 0.3s, border 0.3s; }
+    
+    h2 { margin-top: 0; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+    .theme-toggle-btn { background: transparent; border: 1.5px solid var(--border); color: var(--text); padding: 6px 12px; font-size: 13px; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
-    .btn { width: 100%; padding: 11px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; text-align: center; }
-    .btn-secondary { background: #64748b; }
+    .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 14px; }
+    label { font-size: 13px; font-weight: bold; color: var(--sub); display: block; margin-bottom: 6px; }
+    input[type="date"], select { width: 100%; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; font-weight: bold; background: var(--surface); color: var(--text); outline: none; }
+    
+    .btn { padding: 10px 18px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
     .btn:active { filter: brightness(0.9); }
-    .hidden { display: none !important; }
-
-    .ticket-card-view { border-radius: 10px; border: 1.5px solid var(--border); padding: 12px; margin-bottom: 8px; text-align: center; }
-    .ticket-card-view.type-normal { background: var(--normal-bg); border-color: var(--normal-border); color: var(--normal-text); }
-    .ticket-card-view.type-luggage { background: var(--luggage-bg); border-color: var(--luggage-border); color: var(--luggage-text); }
-    .ticket-card-view.type-qr { background: var(--qr-bg); border-color: var(--qr-border); color: var(--qr-text); }
-    .ticket-card-view.type-empty { background: var(--empty-bg); border-color: var(--empty-border); color: var(--empty-text); }
-
-    #qrViewer { text-align: center; }
-    #qrCanvasContainer { display: flex; justify-content: center; align-items: center; margin: 10px 0; min-height: 220px; }
-    #qrCanvasContainer canvas { border: 6px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 6px; }
-    .ticket-code { font-size: 15px; font-family: monospace; font-weight: bold; letter-spacing: 1px; word-break: break-all; margin-bottom: 8px; background: rgba(0,0,0,0.04); padding: 8px; border-radius: 6px; }
-    .nav-controls { display: flex; justify-content: space-between; gap: 8px; }
-    .nav-btn { flex: 1; padding: 12px; font-size: 15px; font-weight: bold; }
     
-    .ticket-row { padding: 9px 12px; border-radius: 6px; margin-bottom: 4px; font-family: monospace; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; }
-    .ticket-row.type-normal { background: var(--normal-bg); border-color: var(--normal-border); color: var(--normal-text); }
-    .ticket-row.type-luggage { background: var(--luggage-bg); border-color: var(--luggage-border); color: var(--luggage-text); }
-    .ticket-row.type-qr { background: var(--qr-bg); border-color: var(--qr-border); color: var(--qr-text); }
-    .ticket-row.type-empty { background: var(--empty-bg); border-color: var(--empty-border); color: var(--empty-text); }
+    /* 統計摘要卡片 */
+    .summary-box { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+    .summary-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+    .summary-val { font-size: 26px; font-weight: bold; color: var(--primary); margin-top: 4px; }
+
+    /* 表格樣式 */
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--primary-light); color: var(--primary); font-weight: 800; }
+    tr:hover { background: var(--row-hover); }
+    
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .badge-normal { background: #e7e5e4; color: #292524; }
+    .badge-luggage { background: #f3e8ff; color: #7e22ce; }
+    .badge-qr { background: #ecfccb; color: #3f6212; }
+    .badge-empty { background: #fef3c7; color: #92400e; }
+
+    .route-section-title { font-size: 16px; font-weight: 800; color: var(--primary); margin: 20px 0 10px 0; border-bottom: 2px solid var(--primary); padding-bottom: 4px; }
   </style>
 </head>
 <body>
-
-  <!-- 0. 密碼驗證視窗 -->
-  <div id="authView" class="card">
-    <h3 style="margin-top:0;">🔒 系統安全驗證</h3>
-    <label>請輸入系統通關 PIN 碼：</label>
-    <input type="password" id="pinInput" placeholder="請輸入 4 位數或通行密碼" style="margin-bottom: 12px;">
-    <button class="btn" onclick="saveAuthToken()">登入系統</button>
-  </div>
-
-  <!-- 1. 首頁：票號反查、日期與路線選擇 -->
-  <div id="queryView" class="card hidden">
-    <div class="header-bar">
-      <span style="font-weight: bold; font-size: 17px;">驗票紀錄查詢</span>
-      <span id="syncBadge" class="status-badge loading">載入中...</span>
-    </div>
-
-    <!-- 票號精準反查區 -->
-    <label>🔎 票號登車紀錄查詢：</label>
-    <div class="search-row">
-      <input type="text" id="searchTicketInput" class="search-box" placeholder="請輸入 24 碼票號" autocomplete="off">
-      <button class="btn" style="width: auto; padding: 10px 14px; font-size: 13px;" onclick="searchTicketByCode()">查詢</button>
-    </div>
-
-    <div id="searchResultArea" class="search-result-box hidden">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 13px; font-weight: bold; color: var(--primary);" id="searchStatusTitle">查詢結果</span>
-        <button style="border: none; background: transparent; color: var(--sub); font-size: 12px; cursor: pointer;" onclick="closeSearchResult()">關閉 ✕</button>
+  <div class="container">
+    <div class="card">
+      <h2>
+        <span>班次驗票紀錄查詢中心</span>
+        <button class="theme-toggle-btn" onclick="toggleThemeMode()">切換深色模式</button>
+      </h2>
+      
+      <div class="filter-grid">
+        <div>
+          <label>查詢日期：</label>
+          <input type="date" id="queryDate">
+        </div>
+        <div>
+          <label>選擇路線：</label>
+          <select id="routeSelect">
+            <option value="ALL">全部路線 (全部顯示)</option>
+            <option value="台中">台中</option>
+            <option value="朝專">朝專</option>
+            <option value="宜蘭">宜蘭</option>
+            <option value="宜直">宜直</option>
+            <option value="機轉">機轉</option>
+            <option value="99">99 (測試)</option>
+          </select>
+        </div>
+        <div id="sortModeContainer">
+          <label>排序方式 (限全部路線)：</label>
+          <select id="sortModeSelect" onchange="fetchAndRenderData()">
+            <option value="route">依路線分組排列</option>
+            <option value="time">依發車時間先後排序</option>
+          </select>
+        </div>
       </div>
-      <div id="searchResultList"></div>
+      
+      <button class="btn" onclick="fetchAndRenderData()">立即查詢</button>
     </div>
 
-    <label>查詢日期：</label>
-    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
-      <input type="date" id="queryDate" onchange="onDateChanged()">
-      <button class="btn" style="width: auto; padding: 10px 12px; font-size: 13px;" onclick="fetchCloudData()">🔄 重新整理</button>
-    </div>
-
-    <button class="btn btn-secondary" style="margin-bottom: 12px; font-size: 13px; padding: 8px;" onclick="toggleDayOverview()">📊 切換查看【當日總覽看板】</button>
-
-    <!-- 當日總覽面板 (新增空車欄位) -->
-    <div id="dayOverviewBoard" class="overview-board hidden">
-      <div style="font-size: 13px; font-weight: bold; color: #334155;" id="overviewDateTitle">當日全線總計</div>
-      <div style="font-size: 26px; font-weight: 800; color: var(--primary); text-align: center; margin: 4px 0;" id="overviewSummaryString">0 / Q0 / 行0</div>
-      <div class="overview-grid">
-        <div class="overview-cell"><div class="overview-val" id="ovNormal" style="color:#1e293b;">0</div><div class="overview-lbl">一般票</div></div>
-        <div class="overview-cell" style="background:#f0fdf4;"><div class="overview-val" id="ovQr" style="color:#15803d;">0</div><div class="overview-lbl">Q 電子票</div></div>
-        <div class="overview-cell" style="background:#f5f3ff;"><div class="overview-val" id="ovLuggage" style="color:#6d28d9;">0</div><div class="overview-lbl">行 行李票</div></div>
-        <div class="overview-cell" style="background:#fffbeb;"><div class="overview-val" id="ovEmpty" style="color:#b45309;">0</div><div class="overview-lbl">空車班次</div></div>
+    <!-- 數據摘要 -->
+    <div class="summary-box" id="summaryBox" style="display:none;">
+      <div class="summary-card">
+        <label>總發車班次</label>
+        <div class="summary-val" id="sumTrips">0</div>
+      </div>
+      <div class="summary-card">
+        <label>總乘客人數 (不含行李)</label>
+        <div class="summary-val" id="sumPassengers">0</div>
+      </div>
+      <div class="summary-card">
+        <label>總登記行李數</label>
+        <div class="summary-val" id="sumLuggage">0</div>
       </div>
     </div>
 
-    <label>選擇路線查看班次：</label>
-    <div class="route-grid">
-      <div class="route-btn" id="btn_台中" onclick="selectRoute('台中')">台中</div>
-      <div class="route-btn" id="btn_朝專" onclick="selectRoute('朝專')">朝專</div>
-      <div class="route-btn" id="btn_宜蘭" onclick="selectRoute('宜蘭')">宜蘭</div>
-      <div class="route-btn" id="btn_宜直" onclick="selectRoute('宜直')">宜直</div>
-      <div class="route-btn" id="btn_機轉" onclick="selectRoute('機轉')">機轉</div>
-      <div class="route-btn" id="btn_99" onclick="selectRoute('99')">99 (測試)</div>
-      <div class="route-btn" id="btn_ALL" style="grid-column: span 3;" onclick="selectRoute('ALL')">全部路線班次</div>
+    <!-- 結果呈現區 -->
+    <div class="card" id="resultCard">
+      <h3 style="margin-top:0;">查詢結果明細</h3>
+      <div id="resultContent" style="color: var(--sub); text-align: center; padding: 30px 0;">請點擊上方按鈕開始查詢</div>
     </div>
-
-    <div id="tripContainerWrapper" class="hidden">
-      <div style="font-size: 13px; font-weight: bold; color: var(--sub); margin-top: 10px;" id="tripListHeading">班次列表</div>
-      <div id="tripListContainer" class="trip-list"></div>
-    </div>
-  </div>
-
-  <!-- 2. 班次明細與 QR 輪播展示頁 -->
-  <div id="detailView" class="card hidden">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-      <h3 id="detailSessionTitle" style="margin: 0; font-size: 16px;">路線 ｜ 時間</h3>
-      <button class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="backToQuery()">返回</button>
-    </div>
-
-    <div id="qrCardWrapper" class="ticket-card-view type-normal">
-      <div style="font-size: 15px; font-weight: bold;" id="qrPageInfo">第 0 / 0 張</div>
-      <div id="qrCanvasContainer"></div>
-      <div class="ticket-code" id="qrCodeDisplay">------------------------</div>
-
-      <div class="nav-controls">
-        <button class="btn btn-secondary nav-btn" onclick="prevTicket()">▲ 上一張 (↑)</button>
-        <button class="btn btn-secondary nav-btn" onclick="nextTicket()">▼ 下一張 (↓)</button>
-      </div>
-      <div style="font-size: 11px; color: var(--sub); margin-top: 6px;">* 支援實體方向鍵 (↑ / ↓) 或螢幕左右滑動</div>
-    </div>
-
-    <div style="font-size: 13px; font-weight: bold; margin: 16px 0 6px 0;">票券明細清單</div>
-    <div id="detailTicketList" style="max-height: 220px; overflow-y: auto;"></div>
   </div>
 
   <script>
     var GAS_API_URL = "https://script.google.com/macros/s/AKfycbwxWZ8uKHWxO1Z1ngJ6hJZJOHlMrzz_21AcH5uuL4ALpfrLs8-6x-rXVlplspkKLLWR/exec";
-    var savedToken = localStorage.getItem("STATION_QUERY_TOKEN") || "";
+    var AUTH_TOKEN = "8888"; 
 
-    if (savedToken) {
-      document.getElementById('authView').classList.add('hidden');
-      document.getElementById('queryView').classList.remove('hidden');
-      fetchCloudData();
+    // 初始化深色模式
+    function initTheme() {
+      var savedTheme = localStorage.getItem("PDA_THEME") || "light";
+      if (savedTheme === "dark") {
+        document.body.classList.add("dark-mode");
+      }
+    }
+    initTheme();
+
+    function toggleThemeMode() {
+      document.body.classList.toggle("dark-mode");
+      var isDark = document.body.classList.contains("dark-mode");
+      localStorage.setItem("PDA_THEME", isDark ? "dark" : "light");
     }
 
-    function saveAuthToken() {
-      var pin = document.getElementById('pinInput').value.trim();
-      if (!pin) {
-        alert("請輸入密碼！");
-        return;
-      }
-      savedToken = pin;
-      localStorage.setItem("STATION_QUERY_TOKEN", pin);
-      document.getElementById('authView').classList.add('hidden');
-      document.getElementById('queryView').classList.remove('hidden');
-      fetchCloudData();
-    }
-
-    // --- 內嵌純前端離線 QR Code 產生邏輯 ---
-    var SimpleQR = (function() {
-      var PAD0 = 0xEC, PAD1 = 0x11;
-      var RS_BLOCK_TABLE = [
-        [1,26,19],[1,26,16],[1,26,13],[1,26,9],
-        [1,44,34],[1,44,28],[1,44,22],[1,44,16],
-        [1,70,55],[1,70,44],[2,35,17],[2,35,13],
-        [1,100,80],[2,50,32],[2,50,24],[4,25,9]
-      ];
-      var PATTERN_POSITION_TABLE = [[],[6,18],[6,22],[6,26],[6,30]];
-      var EXP_TABLE = new Array(256), LOG_TABLE = new Array(256);
-      for (var i = 0; i < 8; i++) EXP_TABLE[i] = 1 << i;
-      for (var i = 8; i < 256; i++) EXP_TABLE[i] = EXP_TABLE[i - 4] ^ EXP_TABLE[i - 5] ^ EXP_TABLE[i - 6] ^ EXP_TABLE[i - 8];
-      for (var i = 0; i < 255; i++) LOG_TABLE[EXP_TABLE[i]] = i;
-
-      function gexp(n) { while (n < 0) n += 255; while (n >= 255) n -= 255; return EXP_TABLE[n]; }
-      function glog(n) { if (n < 1) throw new Error("glog(" + n + ")"); return LOG_TABLE[n]; }
-
-      function Poly(num, shift) {
-        var offset = 0;
-        while (offset < num.length && num[offset] == 0) offset++;
-        this.num = new Array(num.length - offset + shift);
-        for (var i = 0; i < num.length - offset; i++) this.num[i] = num[i + offset];
-      }
-      Poly.prototype.multiply = function(e) {
-        var num = new Array(this.num.length + e.num.length - 1);
-        for (var i = 0; i < num.length; i++) num[i] = 0;
-        for (var i = 0; i < this.num.length; i++) {
-          for (var j = 0; j < e.num.length; j++) num[i + j] ^= gexp(glog(this.num[i]) + glog(e.num[j]));
-        }
-        return new Poly(num, 0);
-      };
-      Poly.prototype.mod = function(e) {
-        if (this.num.length - e.num.length < 0) return this;
-        var ratio = glog(this.num[0]) - glog(e.num[0]);
-        var num = new Array(this.num.length);
-        for (var i = 0; i < this.num.length; i++) num[i] = this.num[i];
-        for (var i = 0; i < e.num.length; i++) num[i] ^= gexp(glog(e.num[i]) + ratio);
-        return new Poly(num, 0).mod(e);
-      };
-
-      function draw(text, canvas, size) {
-        var typeNumber = 3;
-        var rsBlock = RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
-        var totalDataCount = rsBlock[0] * rsBlock[2];
-        
-        var buffer = [];
-        var bitLength = 0;
-        function putBit(b) {
-          var bufIndex = Math.floor(bitLength / 8);
-          if (buffer.length <= bufIndex) buffer.push(0);
-          if (b) buffer[bufIndex] |= (0x80 >>> (bitLength % 8));
-          bitLength++;
-        }
-        function put(num, length) {
-          for (var i = 0; i < length; i++) putBit(((num >>> (length - i - 1)) & 1) == 1);
-        }
-        put(4, 4);
-        put(text.length, 8);
-        for (var i = 0; i < text.length; i++) put(text.charCodeAt(i), 8);
-        
-        if (bitLength + 4 <= totalDataCount * 8) put(0, 4);
-        while (bitLength % 8 != 0) putBit(false);
-        while (true) {
-          if (bitLength >= totalDataCount * 8) break;
-          put(PAD0, 8);
-          if (bitLength >= totalDataCount * 8) break;
-          put(PAD1, 8);
-        }
-
-        var ecCount = rsBlock[1] - rsBlock[2];
-        var rsPoly = new Poly([1], 0);
-        for (var i = 0; i < ecCount; i++) rsPoly = rsPoly.multiply(new Poly([1, gexp(i)], 0));
-        var rawPoly = new Poly(buffer, rsPoly.num.length - 1);
-        var modPoly = rawPoly.mod(rsPoly);
-        var ecData = new Array(rsPoly.num.length - 1);
-        for (var i = 0; i < ecData.length; i++) {
-          var modIndex = i + modPoly.num.length - ecData.length;
-          ecData[i] = (modIndex >= 0) ? modPoly.num[modIndex] : 0;
-        }
-        var finalData = buffer.concat(ecData);
-
-        var moduleCount = typeNumber * 4 + 17;
-        var modules = new Array(moduleCount);
-        for (var r = 0; r < moduleCount; r++) {
-          modules[r] = new Array(moduleCount);
-          for (var c = 0; c < moduleCount; c++) modules[r][c] = null;
-        }
-
-        function setPattern(row, col) {
-          for (var r = -1; r <= 7; r++) {
-            if (row + r <= -1 || moduleCount <= row + r) continue;
-            for (var c = -1; c <= 7; c++) {
-              if (col + c <= -1 || moduleCount <= col + c) continue;
-              if ((0 <= r && r <= 6 && (c == 0 || c == 6)) || (0 <= c && c <= 6 && (r == 0 || r == 6)) || (2 <= r && r <= 4 && 2 <= c && c <= 4)) {
-                modules[row + r][col + c] = true;
-              } else {
-                modules[row + r][col + c] = false;
-              }
-            }
-          }
-        }
-        setPattern(0, 0);
-        setPattern(moduleCount - 7, 0);
-        setPattern(0, moduleCount - 7);
-
-        var pos = PATTERN_POSITION_TABLE[typeNumber - 1];
-        for (var i = 0; i < pos.length; i++) {
-          for (var j = 0; j < pos.length; j++) {
-            var row = pos[i], col = pos[j];
-            if (modules[row][col] != null) continue;
-            for (var r = -2; r <= 2; r++) {
-              for (var c = -2; c <= 2; c++) modules[row + r][col + c] = (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0));
-            }
-          }
-        }
-
-        for (var r = 8; r < moduleCount - 8; r++) if (modules[r][6] == null) modules[r][6] = (r % 2 == 0);
-        for (var c = 8; c < moduleCount - 8; c++) if (modules[6][c] == null) modules[6][c] = (c % 2 == 0);
-
-        var typeBits = 0x5412;
-        for (var i = 0; i < 15; i++) {
-          var mod = ((typeBits >> i) & 1) == 1;
-          if (i < 6) modules[i][8] = mod;
-          else if (i < 8) modules[i + 1][8] = mod;
-          else modules[moduleCount - 15 + i][8] = mod;
-
-          if (i < 8) modules[8][moduleCount - i - 1] = mod;
-          else if (i < 9) modules[8][15 - i - 1 + 1] = mod;
-          else modules[8][15 - i - 1] = mod;
-        }
-        modules[moduleCount - 8][8] = true;
-
-        var inc = -1, row = moduleCount - 1, bitIdx = 7, byteIdx = 0;
-        for (var col = moduleCount - 1; col > 0; col -= 2) {
-          if (col == 6) col--;
-          while (true) {
-            for (var c = 0; c < 2; c++) {
-              if (modules[row][col - c] == null) {
-                var dark = false;
-                if (byteIdx < finalData.length) dark = (((finalData[byteIdx] >>> bitIdx) & 1) == 1);
-                if ((row + (col - c)) % 2 == 0) dark = !dark;
-                modules[row][col - c] = dark;
-                bitIdx--;
-                if (bitIdx == -1) { byteIdx++; bitIdx = 7; }
-              }
-            }
-            row += inc;
-            if (row < 0 || moduleCount <= row) { row -= inc; inc = -inc; break; }
-          }
-        }
-
-        canvas.width = size;
-        canvas.height = size;
-        var ctx = canvas.getContext('2d');
-        var tileW = size / moduleCount;
-        var tileH = size / moduleCount;
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = "#000000";
-        for (var r = 0; r < moduleCount; r++) {
-          for (var c = 0; c < moduleCount; c++) {
-            if (modules[r][c]) ctx.fillRect(Math.round(c * tileW), Math.round(r * tileH), Math.ceil(tileW), Math.ceil(tileH));
-          }
-        }
-      }
-      return { draw: draw };
-    })();
-
-    // --- 前端字串正規化 ---
-    function formatTimeClean(raw) {
-      if (!raw) return "00:00";
-      var str = String(raw).trim();
-      var match = str.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
-      return match ? match[1] : str;
-    }
+    // 預設日期為今日
+    document.getElementById('queryDate').value = new Date().toISOString().slice(0, 10);
 
     function formatRouteName(name) {
       if (!name) return "未指定";
@@ -390,312 +151,149 @@
       return name;
     }
 
-    function formatCountsShort(normal, qr, luggage, empty) {
-      if (empty > 0 && normal === 0 && qr === 0 && luggage === 0) {
-        return "空車 (0)";
-      }
-      return normal + " / Q" + qr + " / 行" + luggage;
-    }
+    function fetchAndRenderData() {
+      var dateVal = document.getElementById('queryDate').value;
+      var routeVal = document.getElementById('routeSelect').value;
+      var sortMode = document.getElementById('sortModeSelect').value;
+      var container = document.getElementById('resultContent');
+      var summaryBox = document.getElementById('summaryBox');
 
-    // --- 應用程式狀態 ---
-    var rawCloudData = [];
-    var selectedRoute = null;
-    var selectedTripTickets = [];
-    var currentQrIndex = 0;
-
-    var dateInput = document.getElementById('queryDate');
-    dateInput.value = new Date().toISOString().slice(0, 10);
-
-    document.getElementById('searchTicketInput').addEventListener('keydown', function(e) {
-      if (e.keyCode === 13 || e.key === 'Enter') searchTicketByCode();
-    });
-
-    // --- 票號精準反查 ---
-    function searchTicketByCode() {
-      var queryCode = document.getElementById('searchTicketInput').value.trim();
-      if (!queryCode) {
-        alert("請輸入要查詢的票號！");
+      if (!dateVal) {
+        alert("請選擇查詢日期！");
         return;
       }
 
-      var resultArea = document.getElementById('searchResultArea');
-      var resultList = document.getElementById('searchResultList');
-      var statusTitle = document.getElementById('searchStatusTitle');
-      resultList.innerHTML = "";
-      resultArea.classList.remove('hidden');
+      container.innerHTML = "<div style='text-align:center; padding:30px; color:var(--sub);'>正在向雲端讀取資料中...</div>";
+      summaryBox.style.display = "none";
 
-      var matched = rawCloudData.filter(function(item) {
-        return item.code && item.code !== "純計數" && item.code.indexOf(queryCode) !== -1;
-      });
+      var fetchUrl = GAS_API_URL + "?token=" + AUTH_TOKEN;
 
-      if (matched.length === 0) {
-        statusTitle.innerText = "查詢結果 (0 筆)";
-        resultList.innerHTML = "<div style='color:var(--sub); font-size:13px; padding:10px 0; text-align:center;'>❌ 查無此票號的登車紀錄</div>";
-        return;
-      }
-
-      statusTitle.innerText = "查詢結果 (找到 " + matched.length + " 筆登車紀錄)";
-
-      matched.forEach(function(item) {
-        var resItem = document.createElement('div');
-        resItem.className = "result-item";
-
-        var typeTag = "<span style='color:#1e293b; font-weight:bold;'>一般票</span>";
-        if (item.type === '行李票') typeTag = "<span style='color:#6d28d9; font-weight:bold;'>行李票</span>";
-        else if (item.type === '電子QR票') typeTag = "<span style='color:#15803d; font-weight:bold;'>電子QR票</span>";
-        else if (item.type === '空車駛離') typeTag = "<span style='color:#b45309; font-weight:bold;'>空車駛離</span>";
-
-        var cleanScanTime = formatTimeClean(item.scanTime);
-        var cleanTripTime = formatTimeClean(item.tripTime);
-
-        resItem.innerHTML = 
-          "<div class='result-row'><span style='color:var(--sub);'>票號:</span><span class='result-val' style='font-family:monospace;'>" + item.code + "</span></div>" +
-          "<div class='result-row'><span style='color:var(--sub);'>路線:</span><span class='result-val'>" + formatRouteName(item.route) + " (" + typeTag + ")</span></div>" +
-          "<div class='result-row'><span style='color:var(--sub);'>班次發車時間:</span><span class='result-val'>" + item.date + " " + cleanTripTime + "</span></div>" +
-          "<div class='result-row'><span style='color:var(--sub);'>實際驗票時間:</span><span class='result-val' style='color:var(--primary);'>" + cleanScanTime + "</span></div>";
-
-        resultList.appendChild(resItem);
-      });
-    }
-
-    function closeSearchResult() {
-      document.getElementById('searchResultArea').classList.add('hidden');
-    }
-
-    function onDateChanged() {
-      updateDayOverview();
-      if (selectedRoute) renderTripList();
-    }
-
-    function toggleDayOverview() {
-      var board = document.getElementById('dayOverviewBoard');
-      board.classList.toggle('hidden');
-      updateDayOverview();
-    }
-
-    function updateDayOverview() {
-      var queryDate = dateInput.value;
-      document.getElementById('overviewDateTitle').innerText = "📅 " + queryDate + " 當日總覽";
-
-      var dayRecords = rawCloudData.filter(function(item) {
-        return item.date === queryDate;
-      });
-
-      var normalCount = 0, luggageCount = 0, qrCount = 0, emptyCount = 0;
-      dayRecords.forEach(function(item) {
-        if (item.type === '行李票') luggageCount++;
-        else if (item.type === '電子QR票') qrCount++;
-        else if (item.type === '空車駛離') emptyCount++;
-        else normalCount++;
-      });
-
-      // 乘客總數不計入空車
-      document.getElementById('overviewSummaryString').innerText = formatCountsShort(normalCount, qrCount, luggageCount, false);
-      document.getElementById('ovNormal').innerText = normalCount;
-      document.getElementById('ovLuggage').innerText = luggageCount;
-      document.getElementById('ovQr').innerText = qrCount;
-      document.getElementById('ovEmpty').innerText = emptyCount;
-    }
-
-    function selectRoute(route) {
-      selectedRoute = route;
-      document.querySelectorAll('.route-btn').forEach(function(btn) {
-        btn.classList.remove('active');
-      });
-      var targetBtn = document.getElementById('btn_' + route);
-      if (targetBtn) targetBtn.classList.add('active');
-
-      document.getElementById('tripContainerWrapper').classList.remove('hidden');
-      renderTripList();
-    }
-
-    function fetchCloudData() {
-      var badge = document.getElementById('syncBadge');
-      badge.className = "status-badge loading";
-      badge.innerText = "讀取中...";
-
-      fetch(GAS_API_URL + "?token=" + encodeURIComponent(savedToken))
+      fetch(fetchUrl)
         .then(function(res) { return res.json(); })
-        .then(function(json) {
-          if (json.status === "success") {
-            rawCloudData = json.data;
-            badge.className = "status-badge ready";
-            badge.innerText = "已連線 (" + rawCloudData.length + " 筆)";
-            updateDayOverview();
-            if (selectedRoute) renderTripList();
-          } else if (json.status === "forbidden") {
-            badge.className = "status-badge error";
-            badge.innerText = "密碼錯誤";
-            alert("通關密碼錯誤！請重新輸入。");
-            localStorage.removeItem("STATION_QUERY_TOKEN");
-            document.getElementById('queryView').classList.add('hidden');
-            document.getElementById('authView').classList.remove('hidden');
-          } else {
-            throw new Error(json.message);
+        .then(function(res) {
+          if (res.status !== "success") {
+            container.innerHTML = "<div style='color:#b91c1c; text-align:center;'>讀取失敗：" + (res.message || "未知錯誤") + "</div>";
+            return;
           }
+
+          var allData = res.data || [];
+          
+          // 1. 篩選出符合日期的資料
+          var filtered = allData.filter(function(row) {
+            var matchDate = (row.date === dateVal);
+            var matchRoute = (routeVal === "ALL" || row.route === routeVal);
+            return matchDate && matchRoute;
+          });
+
+          if (filtered.length === 0) {
+            container.innerHTML = "<div style='text-align:center; padding:30px; color:var(--sub);'>查無符合條件的驗票紀錄</div>";
+            return;
+          }
+
+          // 2. 統計摘要計算 (行李票獨立)
+          var uniqueTrips = {};
+          var passengerCount = 0;
+          var luggageCount = 0;
+
+          filtered.forEach(function(row) {
+            var tripKey = row.date + "_" + row.route + "_" + row.tripTime;
+            uniqueTrips[tripKey] = true;
+
+            if (row.type === "行李票") {
+              luggageCount++;
+            } else if (row.type !== "空車駛離") {
+              passengerCount++;
+            }
+          });
+
+          document.getElementById('sumTrips').innerText = Object.keys(uniqueTrips).length;
+          document.getElementById('sumPassengers').innerText = passengerCount;
+          document.getElementById('sumLuggage').innerText = luggageCount;
+          summaryBox.style.display = "grid";
+
+          // 3. 渲染明細
+          if (routeVal !== "ALL" || sortMode === "route") {
+            // 依照路線分組呈現
+            renderByRoute(filtered, container);
+          } else {
+            // 依時間先後排序呈現
+            renderByTime(filtered, container);
+          }
+
         })
         .catch(function(err) {
-          badge.className = "status-badge error";
-          badge.innerText = "連線失敗";
-          console.error(err);
+          container.innerHTML = "<div style='color:#b91c1c; text-align:center;'>連線錯誤：" + err + "</div>";
         });
     }
 
-    function renderTripList() {
-      var queryDate = dateInput.value;
-      var container = document.getElementById('tripListContainer');
+    // 依路線分組渲染
+    function renderByRoute(data, container) {
+      var groups = {};
+      data.forEach(function(row) {
+        var r = row.route || "未指定";
+        if (!groups[r]) groups[r] = [];
+        groups[r].push(row);
+      });
+
       container.innerHTML = "";
+      Object.keys(groups).sort().forEach(function(route) {
+        var section = document.createElement('div');
+        var title = document.createElement('div');
+        title.className = "route-section-title";
+        title.innerText = "路線: " + formatRouteName(route) + " (共 " + groups[route].length + " 筆紀錄)";
+        section.appendChild(title);
 
-      var matchedRecords = rawCloudData.filter(function(item) {
-        var matchDate = (item.date === queryDate);
-        var matchRoute = (selectedRoute === "ALL" || item.route === selectedRoute);
-        return matchDate && matchRoute;
-      });
-
-      var tripGroups = {};
-      matchedRecords.forEach(function(item) {
-        var cleanTime = formatTimeClean(item.tripTime);
-        var groupKey = item.route + "_" + cleanTime;
-        if (!tripGroups[groupKey]) {
-          tripGroups[groupKey] = {
-            route: item.route,
-            tripTime: cleanTime,
-            tickets: []
-          };
-        }
-        tripGroups[groupKey].tickets.push(item);
-      });
-
-      var groupKeys = Object.keys(tripGroups).sort();
-      document.getElementById('tripListHeading').innerText = formatRouteName(selectedRoute === 'ALL' ? '全部路線' : selectedRoute) + " 班次列表 (" + groupKeys.length + " 班)";
-
-      if (groupKeys.length === 0) {
-        container.innerHTML = "<div style='color:var(--sub); text-align:center; padding:20px 0; font-size:14px;'>該路線今日尚無驗票班次</div>";
-        return;
-      }
-
-      groupKeys.forEach(function(key) {
-        var group = tripGroups[key];
-        var nCnt = 0, lCnt = 0, qCnt = 0, eCnt = 0;
-        group.tickets.forEach(function(t) {
-          if (t.type === '行李票') lCnt++;
-          else if (t.type === '電子QR票') qCnt++;
-          else if (t.type === '空車駛離') eCnt++;
-          else nCnt++;
-        });
-
-        var item = document.createElement('div');
-        item.className = "trip-item";
-        
-        item.innerHTML = 
-          "<div class='trip-title'>" + formatRouteName(group.route) + " ｜ " + group.tripTime + "</div>" +
-          "<div class='trip-count-badge'>" + formatCountsShort(nCnt, qCnt, lCnt, eCnt) + "</div>";
-
-        item.onclick = function() {
-          openTripDetail(group, nCnt, qCnt, lCnt, eCnt);
-        };
-
-        container.appendChild(item);
+        section.appendChild(createTable(groups[route]));
+        container.appendChild(section);
       });
     }
 
-    function openTripDetail(group, nCnt, qCnt, lCnt, eCnt) {
-      selectedTripTickets = group.tickets;
-      document.getElementById('queryView').classList.add('hidden');
-      document.getElementById('detailView').classList.remove('hidden');
-
-      document.getElementById('detailSessionTitle').innerText = 
-        formatRouteName(group.route) + " ｜ " + group.tripTime + " (" + formatCountsShort(nCnt, qCnt, lCnt, eCnt) + ")";
-
-      var listContainer = document.getElementById('detailTicketList');
-      listContainer.innerHTML = "";
-      selectedTripTickets.forEach(function(item, idx) {
-        var row = document.createElement('div');
-        
-        var typeClass = "type-normal";
-        if (item.type === '行李票') typeClass = "type-luggage";
-        else if (item.type === '電子QR票') typeClass = "type-qr";
-        else if (item.type === '空車駛離') typeClass = "type-empty";
-
-        row.className = "ticket-row " + typeClass;
-        var codeText = (item.type === '電子QR票' || !item.code || item.code === "純計數") ? "電子票 (純計數)" : (item.type === '空車駛離' ? "空車駛離 (0人發車)" : item.code);
-        row.innerHTML = "<span><b>[" + item.type + "]</b> " + (idx + 1) + ". " + codeText + "</span>" +
-                        "<span style='font-size:11px; opacity:0.8;'>" + formatTimeClean(item.scanTime) + "</span>";
-        listContainer.appendChild(row);
+    // 依發車時間先後全域排序渲染
+    function renderByTime(data, container) {
+      // 依照發車時間排序 (HH:mm)
+      data.sort(function(a, b) {
+        return (a.tripTime || "").localeCompare(b.tripTime || "");
       });
 
-      currentQrIndex = 0;
-      showCurrentQR();
-    }
-
-    function backToQuery() {
-      document.getElementById('detailView').classList.add('hidden');
-      document.getElementById('queryView').classList.remove('hidden');
-    }
-
-    function showCurrentQR() {
-      if (selectedTripTickets.length === 0) return;
-      var ticket = selectedTripTickets[currentQrIndex];
-
-      var qrCard = document.getElementById('qrCardWrapper');
-      qrCard.className = "ticket-card-view";
-      if (ticket.type === '行李票') qrCard.classList.add('type-luggage');
-      else if (ticket.type === '電子QR票') qrCard.classList.add('type-qr');
-      else if (ticket.type === '空車駛離') qrCard.classList.add('type-empty');
-      else qrCard.classList.add('type-normal');
-
-      document.getElementById('qrPageInfo').innerText = "第 " + (currentQrIndex + 1) + " / " + selectedTripTickets.length + " 張 [" + ticket.type + "]";
-      var container = document.getElementById('qrCanvasContainer');
       container.innerHTML = "";
-
-      if (ticket.type === '空車駛離') {
-        document.getElementById('qrCodeDisplay').innerText = "空車駛離紀錄 (無旅客 / 0人發車)";
-        var msgDiv = document.createElement('div');
-        msgDiv.style.cssText = "font-size:15px; color:var(--empty-text); font-weight:bold; padding:40px 10px;";
-        msgDiv.innerText = "🚌 本班車為【空車駛離】紀錄\n(無需顯示 QR Code)";
-        container.appendChild(msgDiv);
-      } else if (ticket.type === '電子QR票' || !ticket.code || ticket.code === "純計數") {
-        document.getElementById('qrCodeDisplay').innerText = "電子票 (純計數，無 24 碼)";
-        var msgDiv = document.createElement('div');
-        msgDiv.style.cssText = "font-size:15px; color:var(--qr-text); font-weight:bold; padding:40px 10px;";
-        msgDiv.innerText = "📱 此為電子票純計數紀錄\n(無需顯示 QR Code)";
-        container.appendChild(msgDiv);
-      } else {
-        document.getElementById('qrCodeDisplay').innerText = ticket.code;
-        var canvas = document.createElement('canvas');
-        container.appendChild(canvas);
-        SimpleQR.draw(ticket.code, canvas, 210);
-      }
+      var title = document.createElement('div');
+      title.className = "route-section-title";
+      title.innerText = "依發車時間先後全域排序 (共 " + data.length + " 筆紀錄)";
+      container.appendChild(title);
+      container.appendChild(createTable(data));
     }
 
-    function nextTicket() {
-      if (currentQrIndex < selectedTripTickets.length - 1) {
-        currentQrIndex++;
-        showCurrentQR();
-      }
+    // 建立明細表格元件
+    function createTable(rows) {
+      var wrap = document.createElement('div');
+      wrap.className = "table-container";
+
+      var table = document.createElement('table');
+      var thead = document.createElement('thead');
+      thead.innerHTML = "<tr><th>發車時間</th><th>路線</th><th>票券類別</th><th>票號 / 狀態</th><th>刷入時間</th></tr>";
+      table.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+      rows.forEach(function(row) {
+        var tr = document.createElement('tr');
+        
+        var badgeClass = "badge-normal";
+        if (row.type === "行李票") badgeClass = "badge-luggage";
+        else if (row.type === "電子QR票") badgeClass = "badge-qr";
+        else if (row.type === "空車駛離") badgeClass = "badge-empty";
+
+        tr.innerHTML = "<td><b>" + (row.tripTime || "") + "</b></td>" +
+                       "<td>" + formatRouteName(row.route) + "</td>" +
+                       "<td><span class='badge " + badgeClass + "'>" + (row.type || "一般票") + "</span></td>" +
+                       "<td style='font-family:monospace;'>" + (row.code || "") + "</td>" +
+                       "<td style='font-family:monospace; color:var(--sub);'>" + (row.scanTime || "") + "</td>";
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      return wrap;
     }
-
-    function prevTicket() {
-      if (currentQrIndex > 0) {
-        currentQrIndex--;
-        showCurrentQR();
-      }
-    }
-
-    window.addEventListener('keydown', function(e) {
-      if (document.getElementById('detailView').classList.contains('hidden')) return;
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.keyCode === 40 || e.keyCode === 39) nextTicket();
-      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.keyCode === 38 || e.keyCode === 37) prevTicket();
-    });
-
-    var startX = 0;
-    var qrViewEl = document.getElementById('detailView');
-    qrViewEl.addEventListener('touchstart', function(e) { startX = e.changedTouches[0].screenX; }, false);
-    qrViewEl.addEventListener('touchend', function(e) {
-      var endX = e.changedTouches[0].screenX;
-      if (endX < startX - 40) nextTicket();
-      if (endX > startX + 40) prevTicket();
-    }, false);
   </script>
 </body>
 </html>
