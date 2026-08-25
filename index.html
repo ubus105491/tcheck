@@ -14,7 +14,6 @@
       --text: #0f172a;
       --sub: #64748b;
       
-      /* 票種專用色 */
       --normal-bg: #ffffff;
       --normal-border: #e2e8f0;
       --normal-text: #1e293b;
@@ -35,9 +34,10 @@
     .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: bold; }
     .status-badge.loading { background: #fef3c7; color: #b45309; }
     .status-badge.ready { background: #d1fae5; color: #065f46; }
+    .status-badge.error { background: #fee2e2; color: #b91c1c; }
 
     label { font-size: 13px; font-weight: bold; color: var(--sub); display: block; margin-bottom: 4px; }
-    input[type="text"], input[type="date"] { width: 100%; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; font-weight: bold; }
+    input[type="text"], input[type="date"], input[type="password"] { width: 100%; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; font-weight: bold; }
     
     /* 票號查詢專區樣式 */
     .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
@@ -96,8 +96,16 @@
 </head>
 <body>
 
-  <!-- 1. 首頁：票號反查、日期與路線選擇 -->
-  <div id="queryView" class="card">
+  <!-- 0. 密碼驗證視窗 (若未驗證過會顯示) -->
+  <div id="authView" class="card">
+    <h3 style="margin-top:0;">🔒 系統安全驗證</h3>
+    <label>請輸入系統通關 PIN 碼：</label>
+    <input type="password" id="pinInput" placeholder="請輸入 4 位數或通行密碼" style="margin-bottom: 12px;">
+    <button class="btn" onclick="saveAuthToken()">登入系統</button>
+  </div>
+
+  <!-- 1. 首頁：票號反查、日期與路線選擇 (登入成功才顯示) -->
+  <div id="queryView" class="card hidden">
     <div class="header-bar">
       <span style="font-weight: bold; font-size: 17px;">驗票紀錄查詢</span>
       <span id="syncBadge" class="status-badge loading">載入中...</span>
@@ -163,7 +171,6 @@
       <button class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="backToQuery()">返回</button>
     </div>
 
-    <!-- QR 輪播區 -->
     <div id="qrCardWrapper" class="ticket-card-view type-normal">
       <div style="font-size: 15px; font-weight: bold;" id="qrPageInfo">第 0 / 0 張</div>
       <div id="qrCanvasContainer"></div>
@@ -183,7 +190,29 @@
   <script>
     var GAS_API_URL = "https://script.google.com/macros/s/AKfycbwxWZ8uKHWxO1Z1ngJ6hJZJOHlMrzz_21AcH5uuL4ALpfrLs8-6x-rXVlplspkKLLWR/exec";
 
-    // --- 內嵌純前端離線 QR Code 產生邏輯 (Canvas 繪圖) ---
+    // --- 密碼管理邏輯 ---
+    var savedToken = localStorage.getItem("STATION_QUERY_TOKEN") || "";
+
+    if (savedToken) {
+      document.getElementById('authView').classList.add('hidden');
+      document.getElementById('queryView').classList.remove('hidden');
+      fetchCloudData();
+    }
+
+    function saveAuthToken() {
+      var pin = document.getElementById('pinInput').value.trim();
+      if (!pin) {
+        alert("請輸入密碼！");
+        return;
+      }
+      savedToken = pin;
+      localStorage.setItem("STATION_QUERY_TOKEN", pin);
+      document.getElementById('authView').classList.add('hidden');
+      document.getElementById('queryView').classList.remove('hidden');
+      fetchCloudData();
+    }
+
+    // --- 內嵌純前端離線 QR Code 產生邏輯 ---
     var SimpleQR = (function() {
       var PAD0 = 0xEC, PAD1 = 0x11;
       var RS_BLOCK_TABLE = [
@@ -295,9 +324,7 @@
             var row = pos[i], col = pos[j];
             if (modules[row][col] != null) continue;
             for (var r = -2; r <= 2; r++) {
-              for (var c = -2; c <= 2; c++) {
-                modules[row + r][col + c] = (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0));
-              }
+              for (var c = -2; c <= 2; c++) modules[row + r][col + c] = (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0));
             }
           }
         }
@@ -354,11 +381,10 @@
       return { draw: draw };
     })();
 
-    // --- 前端字串正規化輔助函式 ---
+    // --- 前端字串正規化 ---
     function formatTimeClean(raw) {
       if (!raw) return "00:00";
       var str = String(raw).trim();
-      // 比對像 10:54:49 或 08:47:00 或 08:47
       var match = str.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
       return match ? match[1] : str;
     }
@@ -382,15 +408,11 @@
     var dateInput = document.getElementById('queryDate');
     dateInput.value = new Date().toISOString().slice(0, 10);
 
-    fetchCloudData();
-
     document.getElementById('searchTicketInput').addEventListener('keydown', function(e) {
-      if (e.keyCode === 13 || e.key === 'Enter') {
-        searchTicketByCode();
-      }
+      if (e.keyCode === 13 || e.key === 'Enter') searchTicketByCode();
     });
 
-    // --- 票號精準反查功能 ---
+    // --- 票號精準反查 ---
     function searchTicketByCode() {
       var queryCode = document.getElementById('searchTicketInput').value.trim();
       if (!queryCode) {
@@ -424,7 +446,6 @@
         if (item.type === '行李票') typeTag = "<span style='color:#6d28d9; font-weight:bold;'>行李票</span>";
         if (item.type === '電子QR票') typeTag = "<span style='color:#15803d; font-weight:bold;'>電子QR票</span>";
 
-        // 清洗驗票時間與發車時間
         var cleanScanTime = formatTimeClean(item.scanTime);
         var cleanTripTime = formatTimeClean(item.tripTime);
 
@@ -491,7 +512,8 @@
       badge.className = "status-badge loading";
       badge.innerText = "讀取中...";
 
-      fetch(GAS_API_URL)
+      // 帶入通關 Token 請求
+      fetch(GAS_API_URL + "?token=" + encodeURIComponent(savedToken))
         .then(function(res) { return res.json(); })
         .then(function(json) {
           if (json.status === "success") {
@@ -500,12 +522,19 @@
             badge.innerText = "已連線 (" + rawCloudData.length + " 筆)";
             updateDayOverview();
             if (selectedRoute) renderTripList();
+          } else if (json.status === "forbidden") {
+            badge.className = "status-badge error";
+            badge.innerText = "密碼錯誤";
+            alert("通關密碼錯誤！請重新輸入。");
+            localStorage.removeItem("STATION_QUERY_TOKEN");
+            document.getElementById('queryView').classList.add('hidden');
+            document.getElementById('authView').classList.remove('hidden');
           } else {
             throw new Error(json.message);
           }
         })
         .catch(function(err) {
-          badge.className = "status-badge loading";
+          badge.className = "status-badge error";
           badge.innerText = "連線失敗";
           console.error(err);
         });
