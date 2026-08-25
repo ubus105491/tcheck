@@ -1,0 +1,663 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>驗票紀錄查詢系統</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-light: #eff6ff;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --sub: #64748b;
+      
+      /* 票種專用色 */
+      --normal-bg: #ffffff;
+      --normal-border: #e2e8f0;
+      --normal-text: #1e293b;
+      
+      --luggage-bg: #f5f3ff;
+      --luggage-border: #ddd6fe;
+      --luggage-text: #6d28d9;
+      
+      --qr-bg: #f0fdf4;
+      --qr-border: #bbf7d0;
+      --qr-text: #15803d;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; touch-action: manipulation; }
+    body { margin: 0; padding: 12px; background: var(--bg); color: var(--text); user-select: none; }
+    
+    .card { background: var(--surface); padding: 16px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 12px; border: 1px solid var(--border); }
+    .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .status-badge { font-size: 11px; padding: 3px 8px; border-radius: 20px; font-weight: bold; }
+    .status-badge.loading { background: #fef3c7; color: #b45309; }
+    .status-badge.ready { background: #d1fae5; color: #065f46; }
+
+    label { font-size: 13px; font-weight: bold; color: var(--sub); display: block; margin-bottom: 4px; }
+    input[type="text"], input[type="date"] { width: 100%; padding: 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; font-weight: bold; }
+    
+    /* 票號查詢專區樣式 */
+    .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .search-box { flex: 1; font-family: monospace; }
+    .search-result-box { background: #f8fafc; border: 1.5px dashed var(--primary); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+    .result-item { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+    .result-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+    .result-val { font-weight: bold; color: var(--text); }
+    
+    /* 路線選單 */
+    .route-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .route-btn { background: #f1f5f9; color: #334155; font-size: 15px; font-weight: bold; border: 1.5px solid transparent; border-radius: 8px; height: 46px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .route-btn.active { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+    .route-btn:active { transform: scale(0.97); }
+    
+    /* 班次卡片列表 */
+    .trip-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .trip-item { background: #fff; border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .trip-item:active { background: var(--primary-light); border-color: var(--primary); }
+    .trip-title { font-size: 16px; font-weight: bold; }
+    .trip-count-badge { font-size: 14px; font-weight: 800; color: var(--primary); background: #f1f5f9; padding: 4px 8px; border-radius: 6px; }
+
+    /* 總覽面板 */
+    .overview-board { background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; margin-top: 8px; }
+    .overview-cell { background: #fff; padding: 8px 4px; border-radius: 6px; border: 1px solid var(--border); }
+    .overview-val { font-size: 18px; font-weight: bold; }
+    .overview-lbl { font-size: 11px; color: var(--sub); }
+
+    /* 按鈕 */
+    .btn { width: 100%; padding: 11px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; text-align: center; }
+    .btn-secondary { background: #64748b; }
+    .btn:active { filter: brightness(0.9); }
+    .hidden { display: none !important; }
+
+    /* 票券底色定義 */
+    .ticket-card-view { border-radius: 10px; border: 1.5px solid var(--border); padding: 12px; margin-bottom: 8px; text-align: center; }
+    .ticket-card-view.type-normal { background: var(--normal-bg); border-color: var(--normal-border); color: var(--normal-text); }
+    .ticket-card-view.type-luggage { background: var(--luggage-bg); border-color: var(--luggage-border); color: var(--luggage-text); }
+    .ticket-card-view.type-qr { background: var(--qr-bg); border-color: var(--qr-border); color: var(--qr-text); }
+
+    /* QR 輪播區 */
+    #qrViewer { text-align: center; }
+    #qrCanvasContainer { display: flex; justify-content: center; align-items: center; margin: 10px 0; min-height: 220px; }
+    #qrCanvasContainer canvas { border: 6px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 6px; }
+    .ticket-code { font-size: 15px; font-family: monospace; font-weight: bold; letter-spacing: 1px; word-break: break-all; margin-bottom: 8px; background: rgba(0,0,0,0.04); padding: 8px; border-radius: 6px; }
+    .nav-controls { display: flex; justify-content: space-between; gap: 8px; }
+    .nav-btn { flex: 1; padding: 12px; font-size: 15px; font-weight: bold; }
+    
+    /* 票券列表底色 */
+    .ticket-row { padding: 9px 12px; border-radius: 6px; margin-bottom: 4px; font-family: monospace; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; }
+    .ticket-row.type-normal { background: var(--normal-bg); border-color: var(--normal-border); color: var(--normal-text); }
+    .ticket-row.type-luggage { background: var(--luggage-bg); border-color: var(--luggage-border); color: var(--luggage-text); }
+    .ticket-row.type-qr { background: var(--qr-bg); border-color: var(--qr-border); color: var(--qr-text); }
+  </style>
+</head>
+<body>
+
+  <!-- 1. 首頁：票號反查、日期與路線選擇 -->
+  <div id="queryView" class="card">
+    <div class="header-bar">
+      <span style="font-weight: bold; font-size: 17px;">驗票紀錄查詢</span>
+      <span id="syncBadge" class="status-badge loading">載入中...</span>
+    </div>
+
+    <!-- 票號精準反查區 -->
+    <label>🔎 票號登車紀錄查詢：</label>
+    <div class="search-row">
+      <input type="text" id="searchTicketInput" class="search-box" placeholder="請輸入 24 碼票號" autocomplete="off">
+      <button class="btn" style="width: auto; padding: 10px 14px; font-size: 13px;" onclick="searchTicketByCode()">查詢</button>
+    </div>
+
+    <!-- 票號查詢結果卡片 -->
+    <div id="searchResultArea" class="search-result-box hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 13px; font-weight: bold; color: var(--primary);" id="searchStatusTitle">查詢結果</span>
+        <button style="border: none; background: transparent; color: var(--sub); font-size: 12px; cursor: pointer;" onclick="closeSearchResult()">關閉 ✕</button>
+      </div>
+      <div id="searchResultList"></div>
+    </div>
+
+    <label>查詢日期：</label>
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+      <input type="date" id="queryDate" onchange="onDateChanged()">
+      <button class="btn" style="width: auto; padding: 10px 12px; font-size: 13px;" onclick="fetchCloudData()">🔄 重新整理</button>
+    </div>
+
+    <button class="btn btn-secondary" style="margin-bottom: 12px; font-size: 13px; padding: 8px;" onclick="toggleDayOverview()">📊 切換查看【當日總覽看板】</button>
+
+    <!-- 當日總覽面板 -->
+    <div id="dayOverviewBoard" class="overview-board hidden">
+      <div style="font-size: 13px; font-weight: bold; color: #334155;" id="overviewDateTitle">當日全線總計</div>
+      <div style="font-size: 26px; font-weight: 800; color: var(--primary); text-align: center; margin: 4px 0;" id="overviewSummaryString">0 / Q0 / 行0</div>
+      <div class="overview-grid">
+        <div class="overview-cell"><div class="overview-val" id="ovNormal" style="color:#1e293b;">0</div><div class="overview-lbl">一般票</div></div>
+        <div class="overview-cell" style="background:#f0fdf4;"><div class="overview-val" id="ovQr" style="color:#15803d;">0</div><div class="overview-lbl">Q 電子票</div></div>
+        <div class="overview-cell" style="background:#f5f3ff;"><div class="overview-val" id="ovLuggage" style="color:#6d28d9;">0</div><div class="overview-lbl">行 行李票</div></div>
+      </div>
+    </div>
+
+    <label>選擇路線查看班次：</label>
+    <div class="route-grid">
+      <div class="route-btn" id="btn_台中" onclick="selectRoute('台中')">台中</div>
+      <div class="route-btn" id="btn_朝專" onclick="selectRoute('朝專')">朝專</div>
+      <div class="route-btn" id="btn_宜蘭" onclick="selectRoute('宜蘭')">宜蘭</div>
+      <div class="route-btn" id="btn_宜直" onclick="selectRoute('宜直')">宜直</div>
+      <div class="route-btn" id="btn_機轉" onclick="selectRoute('機轉')">機轉</div>
+      <div class="route-btn" id="btn_99" onclick="selectRoute('99')">99 (測試)</div>
+      <div class="route-btn" id="btn_ALL" style="grid-column: span 3;" onclick="selectRoute('ALL')">全部路線班次</div>
+    </div>
+
+    <!-- 班次清單 -->
+    <div id="tripContainerWrapper" class="hidden">
+      <div style="font-size: 13px; font-weight: bold; color: var(--sub); margin-top: 10px;" id="tripListHeading">班次列表</div>
+      <div id="tripListContainer" class="trip-list"></div>
+    </div>
+  </div>
+
+  <!-- 2. 班次明細與 QR 輪播展示頁 -->
+  <div id="detailView" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 id="detailSessionTitle" style="margin: 0; font-size: 16px;">路線 ｜ 時間 (0 / Q0 / 行0)</h3>
+      <button class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="backToQuery()">返回</button>
+    </div>
+
+    <!-- QR 輪播區 -->
+    <div id="qrCardWrapper" class="ticket-card-view type-normal">
+      <div style="font-size: 15px; font-weight: bold;" id="qrPageInfo">第 0 / 0 張</div>
+      <div id="qrCanvasContainer"></div>
+      <div class="ticket-code" id="qrCodeDisplay">------------------------</div>
+
+      <div class="nav-controls">
+        <button class="btn btn-secondary nav-btn" onclick="prevTicket()">▲ 上一張 (↑)</button>
+        <button class="btn btn-secondary nav-btn" onclick="nextTicket()">▼ 下一張 (↓)</button>
+      </div>
+      <div style="font-size: 11px; color: var(--sub); margin-top: 6px;">* 支援實體方向鍵 (↑ / ↓) 或螢幕左右滑動</div>
+    </div>
+
+    <div style="font-size: 13px; font-weight: bold; margin: 16px 0 6px 0;">票券明細清單</div>
+    <div id="detailTicketList" style="max-height: 220px; overflow-y: auto;"></div>
+  </div>
+
+  <script>
+    var GAS_API_URL = "https://script.google.com/macros/s/AKfycbwxWZ8uKHWxO1Z1ngJ6hJZJOHlMrzz_21AcH5uuL4ALpfrLs8-6x-rXVlplspkKLLWR/exec";
+
+    // --- 內嵌純前端離線 QR Code 產生邏輯 (Canvas 繪圖) ---
+    var SimpleQR = (function() {
+      var PAD0 = 0xEC, PAD1 = 0x11;
+      var RS_BLOCK_TABLE = [
+        [1,26,19],[1,26,16],[1,26,13],[1,26,9],
+        [1,44,34],[1,44,28],[1,44,22],[1,44,16],
+        [1,70,55],[1,70,44],[2,35,17],[2,35,13],
+        [1,100,80],[2,50,32],[2,50,24],[4,25,9]
+      ];
+      var PATTERN_POSITION_TABLE = [[],[6,18],[6,22],[6,26],[6,30]];
+      var EXP_TABLE = new Array(256), LOG_TABLE = new Array(256);
+      for (var i = 0; i < 8; i++) EXP_TABLE[i] = 1 << i;
+      for (var i = 8; i < 256; i++) EXP_TABLE[i] = EXP_TABLE[i - 4] ^ EXP_TABLE[i - 5] ^ EXP_TABLE[i - 6] ^ EXP_TABLE[i - 8];
+      for (var i = 0; i < 255; i++) LOG_TABLE[EXP_TABLE[i]] = i;
+
+      function gexp(n) { while (n < 0) n += 255; while (n >= 255) n -= 255; return EXP_TABLE[n]; }
+      function glog(n) { if (n < 1) throw new Error("glog(" + n + ")"); return LOG_TABLE[n]; }
+
+      function Poly(num, shift) {
+        var offset = 0;
+        while (offset < num.length && num[offset] == 0) offset++;
+        this.num = new Array(num.length - offset + shift);
+        for (var i = 0; i < num.length - offset; i++) this.num[i] = num[i + offset];
+      }
+      Poly.prototype.multiply = function(e) {
+        var num = new Array(this.num.length + e.num.length - 1);
+        for (var i = 0; i < num.length; i++) num[i] = 0;
+        for (var i = 0; i < this.num.length; i++) {
+          for (var j = 0; j < e.num.length; j++) num[i + j] ^= gexp(glog(this.num[i]) + glog(e.num[j]));
+        }
+        return new Poly(num, 0);
+      };
+      Poly.prototype.mod = function(e) {
+        if (this.num.length - e.num.length < 0) return this;
+        var ratio = glog(this.num[0]) - glog(e.num[0]);
+        var num = new Array(this.num.length);
+        for (var i = 0; i < this.num.length; i++) num[i] = this.num[i];
+        for (var i = 0; i < e.num.length; i++) num[i] ^= gexp(glog(e.num[i]) + ratio);
+        return new Poly(num, 0).mod(e);
+      };
+
+      function draw(text, canvas, size) {
+        var typeNumber = 3;
+        var rsBlock = RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+        var totalDataCount = rsBlock[0] * rsBlock[2];
+        
+        var buffer = [];
+        var bitLength = 0;
+        function putBit(b) {
+          var bufIndex = Math.floor(bitLength / 8);
+          if (buffer.length <= bufIndex) buffer.push(0);
+          if (b) buffer[bufIndex] |= (0x80 >>> (bitLength % 8));
+          bitLength++;
+        }
+        function put(num, length) {
+          for (var i = 0; i < length; i++) putBit(((num >>> (length - i - 1)) & 1) == 1);
+        }
+        put(4, 4);
+        put(text.length, 8);
+        for (var i = 0; i < text.length; i++) put(text.charCodeAt(i), 8);
+        
+        if (bitLength + 4 <= totalDataCount * 8) put(0, 4);
+        while (bitLength % 8 != 0) putBit(false);
+        while (true) {
+          if (bitLength >= totalDataCount * 8) break;
+          put(PAD0, 8);
+          if (bitLength >= totalDataCount * 8) break;
+          put(PAD1, 8);
+        }
+
+        var ecCount = rsBlock[1] - rsBlock[2];
+        var rsPoly = new Poly([1], 0);
+        for (var i = 0; i < ecCount; i++) rsPoly = rsPoly.multiply(new Poly([1, gexp(i)], 0));
+        var rawPoly = new Poly(buffer, rsPoly.num.length - 1);
+        var modPoly = rawPoly.mod(rsPoly);
+        var ecData = new Array(rsPoly.num.length - 1);
+        for (var i = 0; i < ecData.length; i++) {
+          var modIndex = i + modPoly.num.length - ecData.length;
+          ecData[i] = (modIndex >= 0) ? modPoly.num[modIndex] : 0;
+        }
+        var finalData = buffer.concat(ecData);
+
+        var moduleCount = typeNumber * 4 + 17;
+        var modules = new Array(moduleCount);
+        for (var r = 0; r < moduleCount; r++) {
+          modules[r] = new Array(moduleCount);
+          for (var c = 0; c < moduleCount; c++) modules[r][c] = null;
+        }
+
+        function setPattern(row, col) {
+          for (var r = -1; r <= 7; r++) {
+            if (row + r <= -1 || moduleCount <= row + r) continue;
+            for (var c = -1; c <= 7; c++) {
+              if (col + c <= -1 || moduleCount <= col + c) continue;
+              if ((0 <= r && r <= 6 && (c == 0 || c == 6)) || (0 <= c && c <= 6 && (r == 0 || r == 6)) || (2 <= r && r <= 4 && 2 <= c && c <= 4)) {
+                modules[row + r][col + c] = true;
+              } else {
+                modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+        setPattern(0, 0);
+        setPattern(moduleCount - 7, 0);
+        setPattern(0, moduleCount - 7);
+
+        var pos = PATTERN_POSITION_TABLE[typeNumber - 1];
+        for (var i = 0; i < pos.length; i++) {
+          for (var j = 0; j < pos.length; j++) {
+            var row = pos[i], col = pos[j];
+            if (modules[row][col] != null) continue;
+            for (var r = -2; r <= 2; r++) {
+              for (var c = -2; c <= 2; c++) {
+                modules[row + r][col + c] = (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0));
+              }
+            }
+          }
+        }
+
+        for (var r = 8; r < moduleCount - 8; r++) if (modules[r][6] == null) modules[r][6] = (r % 2 == 0);
+        for (var c = 8; c < moduleCount - 8; c++) if (modules[6][c] == null) modules[6][c] = (c % 2 == 0);
+
+        var typeBits = 0x5412;
+        for (var i = 0; i < 15; i++) {
+          var mod = ((typeBits >> i) & 1) == 1;
+          if (i < 6) modules[i][8] = mod;
+          else if (i < 8) modules[i + 1][8] = mod;
+          else modules[moduleCount - 15 + i][8] = mod;
+
+          if (i < 8) modules[8][moduleCount - i - 1] = mod;
+          else if (i < 9) modules[8][15 - i - 1 + 1] = mod;
+          else modules[8][15 - i - 1] = mod;
+        }
+        modules[moduleCount - 8][8] = true;
+
+        var inc = -1, row = moduleCount - 1, bitIdx = 7, byteIdx = 0;
+        for (var col = moduleCount - 1; col > 0; col -= 2) {
+          if (col == 6) col--;
+          while (true) {
+            for (var c = 0; c < 2; c++) {
+              if (modules[row][col - c] == null) {
+                var dark = false;
+                if (byteIdx < finalData.length) dark = (((finalData[byteIdx] >>> bitIdx) & 1) == 1);
+                if ((row + (col - c)) % 2 == 0) dark = !dark;
+                modules[row][col - c] = dark;
+                bitIdx--;
+                if (bitIdx == -1) { byteIdx++; bitIdx = 7; }
+              }
+            }
+            row += inc;
+            if (row < 0 || moduleCount <= row) { row -= inc; inc = -inc; break; }
+          }
+        }
+
+        canvas.width = size;
+        canvas.height = size;
+        var ctx = canvas.getContext('2d');
+        var tileW = size / moduleCount;
+        var tileH = size / moduleCount;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = "#000000";
+        for (var r = 0; r < moduleCount; r++) {
+          for (var c = 0; c < moduleCount; c++) {
+            if (modules[r][c]) ctx.fillRect(Math.round(c * tileW), Math.round(r * tileH), Math.ceil(tileW), Math.ceil(tileH));
+          }
+        }
+      }
+      return { draw: draw };
+    })();
+
+    // --- 前端字串正規化輔助函式 ---
+    function formatTimeClean(raw) {
+      if (!raw) return "00:00";
+      var str = String(raw).trim();
+      // 比對像 10:54:49 或 08:47:00 或 08:47
+      var match = str.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+      return match ? match[1] : str;
+    }
+
+    function formatRouteName(name) {
+      if (!name) return "未指定";
+      if (name === "99") return "99 (測試)";
+      return name;
+    }
+
+    function formatCountsShort(normal, qr, luggage) {
+      return normal + " / Q" + qr + " / 行" + luggage;
+    }
+
+    // --- 應用程式狀態 ---
+    var rawCloudData = [];
+    var selectedRoute = null;
+    var selectedTripTickets = [];
+    var currentQrIndex = 0;
+
+    var dateInput = document.getElementById('queryDate');
+    dateInput.value = new Date().toISOString().slice(0, 10);
+
+    fetchCloudData();
+
+    document.getElementById('searchTicketInput').addEventListener('keydown', function(e) {
+      if (e.keyCode === 13 || e.key === 'Enter') {
+        searchTicketByCode();
+      }
+    });
+
+    // --- 票號精準反查功能 ---
+    function searchTicketByCode() {
+      var queryCode = document.getElementById('searchTicketInput').value.trim();
+      if (!queryCode) {
+        alert("請輸入要查詢的票號！");
+        return;
+      }
+
+      var resultArea = document.getElementById('searchResultArea');
+      var resultList = document.getElementById('searchResultList');
+      var statusTitle = document.getElementById('searchStatusTitle');
+      resultList.innerHTML = "";
+      resultArea.classList.remove('hidden');
+
+      var matched = rawCloudData.filter(function(item) {
+        return item.code && item.code !== "純計數" && item.code.indexOf(queryCode) !== -1;
+      });
+
+      if (matched.length === 0) {
+        statusTitle.innerText = "查詢結果 (0 筆)";
+        resultList.innerHTML = "<div style='color:var(--sub); font-size:13px; padding:10px 0; text-align:center;'>❌ 查無此票號的登車紀錄</div>";
+        return;
+      }
+
+      statusTitle.innerText = "查詢結果 (找到 " + matched.length + " 筆登車紀錄)";
+
+      matched.forEach(function(item) {
+        var resItem = document.createElement('div');
+        resItem.className = "result-item";
+
+        var typeTag = "<span style='color:#1e293b; font-weight:bold;'>一般票</span>";
+        if (item.type === '行李票') typeTag = "<span style='color:#6d28d9; font-weight:bold;'>行李票</span>";
+        if (item.type === '電子QR票') typeTag = "<span style='color:#15803d; font-weight:bold;'>電子QR票</span>";
+
+        // 清洗驗票時間與發車時間
+        var cleanScanTime = formatTimeClean(item.scanTime);
+        var cleanTripTime = formatTimeClean(item.tripTime);
+
+        resItem.innerHTML = 
+          "<div class='result-row'><span style='color:var(--sub);'>票號:</span><span class='result-val' style='font-family:monospace;'>" + item.code + "</span></div>" +
+          "<div class='result-row'><span style='color:var(--sub);'>路線:</span><span class='result-val'>" + formatRouteName(item.route) + " (" + typeTag + ")</span></div>" +
+          "<div class='result-row'><span style='color:var(--sub);'>班次發車時間:</span><span class='result-val'>" + item.date + " " + cleanTripTime + "</span></div>" +
+          "<div class='result-row'><span style='color:var(--sub);'>實際驗票時間:</span><span class='result-val' style='color:var(--primary);'>" + cleanScanTime + "</span></div>";
+
+        resultList.appendChild(resItem);
+      });
+    }
+
+    function closeSearchResult() {
+      document.getElementById('searchResultArea').classList.add('hidden');
+    }
+
+    function onDateChanged() {
+      updateDayOverview();
+      if (selectedRoute) renderTripList();
+    }
+
+    function toggleDayOverview() {
+      var board = document.getElementById('dayOverviewBoard');
+      board.classList.toggle('hidden');
+      updateDayOverview();
+    }
+
+    function updateDayOverview() {
+      var queryDate = dateInput.value;
+      document.getElementById('overviewDateTitle').innerText = "📅 " + queryDate + " 當日總覽";
+
+      var dayRecords = rawCloudData.filter(function(item) {
+        return item.date === queryDate;
+      });
+
+      var normalCount = 0, luggageCount = 0, qrCount = 0;
+      dayRecords.forEach(function(item) {
+        if (item.type === '行李票') luggageCount++;
+        else if (item.type === '電子QR票') qrCount++;
+        else normalCount++;
+      });
+
+      document.getElementById('overviewSummaryString').innerText = formatCountsShort(normalCount, qrCount, luggageCount);
+      document.getElementById('ovNormal').innerText = normalCount;
+      document.getElementById('ovLuggage').innerText = luggageCount;
+      document.getElementById('ovQr').innerText = qrCount;
+    }
+
+    function selectRoute(route) {
+      selectedRoute = route;
+      document.querySelectorAll('.route-btn').forEach(function(btn) {
+        btn.classList.remove('active');
+      });
+      var targetBtn = document.getElementById('btn_' + route);
+      if (targetBtn) targetBtn.classList.add('active');
+
+      document.getElementById('tripContainerWrapper').classList.remove('hidden');
+      renderTripList();
+    }
+
+    function fetchCloudData() {
+      var badge = document.getElementById('syncBadge');
+      badge.className = "status-badge loading";
+      badge.innerText = "讀取中...";
+
+      fetch(GAS_API_URL)
+        .then(function(res) { return res.json(); })
+        .then(function(json) {
+          if (json.status === "success") {
+            rawCloudData = json.data;
+            badge.className = "status-badge ready";
+            badge.innerText = "已連線 (" + rawCloudData.length + " 筆)";
+            updateDayOverview();
+            if (selectedRoute) renderTripList();
+          } else {
+            throw new Error(json.message);
+          }
+        })
+        .catch(function(err) {
+          badge.className = "status-badge loading";
+          badge.innerText = "連線失敗";
+          console.error(err);
+        });
+    }
+
+    function renderTripList() {
+      var queryDate = dateInput.value;
+      var container = document.getElementById('tripListContainer');
+      container.innerHTML = "";
+
+      var matchedRecords = rawCloudData.filter(function(item) {
+        var matchDate = (item.date === queryDate);
+        var matchRoute = (selectedRoute === "ALL" || item.route === selectedRoute);
+        return matchDate && matchRoute;
+      });
+
+      var tripGroups = {};
+      matchedRecords.forEach(function(item) {
+        var cleanTime = formatTimeClean(item.tripTime);
+        var groupKey = item.route + "_" + cleanTime;
+        if (!tripGroups[groupKey]) {
+          tripGroups[groupKey] = {
+            route: item.route,
+            tripTime: cleanTime,
+            tickets: []
+          };
+        }
+        tripGroups[groupKey].tickets.push(item);
+      });
+
+      var groupKeys = Object.keys(tripGroups).sort();
+      document.getElementById('tripListHeading').innerText = formatRouteName(selectedRoute === 'ALL' ? '全部路線' : selectedRoute) + " 班次列表 (" + groupKeys.length + " 班)";
+
+      if (groupKeys.length === 0) {
+        container.innerHTML = "<div style='color:var(--sub); text-align:center; padding:20px 0; font-size:14px;'>該路線今日尚無驗票班次</div>";
+        return;
+      }
+
+      groupKeys.forEach(function(key) {
+        var group = tripGroups[key];
+        var nCnt = 0, lCnt = 0, qCnt = 0;
+        group.tickets.forEach(function(t) {
+          if (t.type === '行李票') lCnt++;
+          else if (t.type === '電子QR票') qCnt++;
+          else nCnt++;
+        });
+
+        var item = document.createElement('div');
+        item.className = "trip-item";
+        
+        item.innerHTML = 
+          "<div class='trip-title'>" + formatRouteName(group.route) + " ｜ " + group.tripTime + "</div>" +
+          "<div class='trip-count-badge'>" + formatCountsShort(nCnt, qCnt, lCnt) + "</div>";
+
+        item.onclick = function() {
+          openTripDetail(group, nCnt, qCnt, lCnt);
+        };
+
+        container.appendChild(item);
+      });
+    }
+
+    function openTripDetail(group, nCnt, qCnt, lCnt) {
+      selectedTripTickets = group.tickets;
+      document.getElementById('queryView').classList.add('hidden');
+      document.getElementById('detailView').classList.remove('hidden');
+
+      document.getElementById('detailSessionTitle').innerText = 
+        formatRouteName(group.route) + " ｜ " + group.tripTime + " (" + formatCountsShort(nCnt, qCnt, lCnt) + ")";
+
+      var listContainer = document.getElementById('detailTicketList');
+      listContainer.innerHTML = "";
+      selectedTripTickets.forEach(function(item, idx) {
+        var row = document.createElement('div');
+        
+        var typeClass = "type-normal";
+        if (item.type === '行李票') typeClass = "type-luggage";
+        if (item.type === '電子QR票') typeClass = "type-qr";
+
+        row.className = "ticket-row " + typeClass;
+        var codeText = (item.type === '電子QR票' || !item.code || item.code === "純計數") ? "電子票 (純計數)" : item.code;
+        row.innerHTML = "<span><b>[" + item.type + "]</b> " + (idx + 1) + ". " + codeText + "</span>" +
+                        "<span style='font-size:11px; opacity:0.8;'>" + formatTimeClean(item.scanTime) + "</span>";
+        listContainer.appendChild(row);
+      });
+
+      currentQrIndex = 0;
+      showCurrentQR();
+    }
+
+    function backToQuery() {
+      document.getElementById('detailView').classList.add('hidden');
+      document.getElementById('queryView').classList.remove('hidden');
+    }
+
+    function showCurrentQR() {
+      if (selectedTripTickets.length === 0) return;
+      var ticket = selectedTripTickets[currentQrIndex];
+      var isQRCount = (ticket.type === '電子QR票' || !ticket.code || ticket.code === "純計數");
+
+      var qrCard = document.getElementById('qrCardWrapper');
+      qrCard.className = "ticket-card-view";
+      if (ticket.type === '行李票') qrCard.classList.add('type-luggage');
+      else if (ticket.type === '電子QR票') qrCard.classList.add('type-qr');
+      else qrCard.classList.add('type-normal');
+
+      document.getElementById('qrPageInfo').innerText = "第 " + (currentQrIndex + 1) + " / " + selectedTripTickets.length + " 張 [" + ticket.type + "]";
+      var container = document.getElementById('qrCanvasContainer');
+      container.innerHTML = "";
+
+      if (isQRCount) {
+        document.getElementById('qrCodeDisplay').innerText = "電子票 (純計數，無 24 碼)";
+        var msgDiv = document.createElement('div');
+        msgDiv.style.cssText = "font-size:15px; color:var(--qr-text); font-weight:bold; padding:40px 10px;";
+        msgDiv.innerText = "📱 此為電子票純計數紀錄\n(無需顯示 QR Code)";
+        container.appendChild(msgDiv);
+      } else {
+        document.getElementById('qrCodeDisplay').innerText = ticket.code;
+        var canvas = document.createElement('canvas');
+        container.appendChild(canvas);
+        SimpleQR.draw(ticket.code, canvas, 210);
+      }
+    }
+
+    function nextTicket() {
+      if (currentQrIndex < selectedTripTickets.length - 1) {
+        currentQrIndex++;
+        showCurrentQR();
+      }
+    }
+
+    function prevTicket() {
+      if (currentQrIndex > 0) {
+        currentQrIndex--;
+        showCurrentQR();
+      }
+    }
+
+    window.addEventListener('keydown', function(e) {
+      if (document.getElementById('detailView').classList.contains('hidden')) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.keyCode === 40 || e.keyCode === 39) nextTicket();
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.keyCode === 38 || e.keyCode === 37) prevTicket();
+    });
+
+    var startX = 0;
+    var qrViewEl = document.getElementById('detailView');
+    qrViewEl.addEventListener('touchstart', function(e) { startX = e.changedTouches[0].screenX; }, false);
+    qrViewEl.addEventListener('touchend', function(e) {
+      var endX = e.changedTouches[0].screenX;
+      if (endX < startX - 40) nextTicket();
+      if (endX > startX + 40) prevTicket();
+    }, false);
+  </script>
+</body>
+</html>
