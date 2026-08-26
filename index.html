@@ -235,37 +235,19 @@
       .nav-tools { width: 100%; justify-content: space-between; }
       .nav-tools input[type="date"] { flex: 1; min-width: 110px; }
 
-      .main-workspace {
-        display: block;
-        position: relative;
-      }
-
-      .left-sidebar {
-        width: 100%;
-        border-right: none;
-        display: flex;
-      }
-
-      .right-content {
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        z-index: 10;
-        display: none;
-      }
-
+      .main-workspace { display: block; position: relative; }
+      .left-sidebar { width: 100%; border-right: none; display: flex; }
+      .right-content { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10; display: none; }
       body.mobile-view-detail .left-sidebar { display: none; }
       body.mobile-view-detail .right-content { display: flex; }
       body.mobile-view-detail .mobile-back-btn { display: inline-flex; }
-
-      .dispatch-grid {
-        grid-template-columns: 1fr 1fr;
-      }
+      .dispatch-grid { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
 <body>
 
-  <!-- 0. 系統登入遮罩 (帳號 2347 / 密碼 1299) -->
+  <!-- 0. 登入遮罩 (帳號 2347 / 密碼 1299) -->
   <div id="loginModal" class="modal-overlay">
     <div class="modal-box" style="max-width: 320px; text-align: center;">
       <h3 style="margin-top: 0; color: var(--primary);">調度系統身分驗證</h3>
@@ -298,10 +280,8 @@
     </div>
   </header>
 
-  <!-- 2. 主工作區 (電腦雙欄 / 手機動態切換) -->
+  <!-- 2. 主工作區 -->
   <main class="main-workspace">
-    
-    <!-- 左側：班次導航清單 -->
     <aside class="left-sidebar">
       <div class="sidebar-header">
         <div style="display: flex; gap: 6px;">
@@ -317,17 +297,12 @@
           <span id="syncTimestamp" style="font-family: monospace;">未同步</span>
         </div>
       </div>
-
       <div class="sidebar-list" id="sidebarTripList"></div>
     </aside>
 
-    <!-- 右側：調度與驗票工作台 -->
     <section class="right-content">
-      
-      <!-- 手機專用：返回班次清單按鈕 -->
       <button class="mobile-back-btn" onclick="backToMobileList()">⬅ 返回班次清單</button>
 
-      <!-- 區塊 A：當前班次基本資訊與調度指派 -->
       <div class="panel-box" id="dispatchPanel">
         <div class="panel-header">
           <div>
@@ -364,7 +339,6 @@
         </div>
       </div>
 
-      <!-- 區塊 B：載客即時概況 -->
       <div class="panel-box">
         <div class="panel-header">
           <span>📊 載客與行李統計</span>
@@ -383,7 +357,6 @@
         </div>
       </div>
 
-      <!-- 區塊 C：詳細驗票紀錄清單 -->
       <div class="panel-box" style="flex: 1; display: flex; flex-direction: column;">
         <div class="panel-header">
           <span>🎟️ 已刷入票券清單</span>
@@ -405,7 +378,6 @@
           </table>
         </div>
       </div>
-
     </section>
   </main>
 
@@ -446,7 +418,6 @@
         </div>
       </div>
 
-      <!-- 自訂站點輸入框 -->
       <div id="customStationInputGroup" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
         <div>
           <label>手動輸入起點：</label>
@@ -475,7 +446,7 @@
     </div>
   </div>
 
-  <!-- 4. 醒目 QR Code 檢視彈窗 -->
+  <!-- 4. QR 檢視彈窗 -->
   <div id="qrModal" class="modal-overlay hidden" style="z-index: 10000;">
     <div class="modal-box" style="max-width: 320px; text-align: center;">
       <div id="qrWrapper" class="qr-ticket-card">
@@ -651,12 +622,14 @@
 
     function initConsole() {
       var datalist = document.getElementById('presetRouteDatalist');
-      datalist.innerHTML = "";
-      ROUTE_PRESETS.forEach(function(item) {
-        var opt = document.createElement('option');
-        opt.value = item.code + " (" + item.origin + "→" + item.dest + ")";
-        datalist.appendChild(opt);
-      });
+      if (datalist) {
+        datalist.innerHTML = "";
+        ROUTE_PRESETS.forEach(function(item) {
+          var opt = document.createElement('option');
+          opt.value = item.code + " (" + item.origin + "→" + item.dest + ")";
+          datalist.appendChild(opt);
+        });
+      }
 
       populateStationSelects();
 
@@ -670,6 +643,7 @@
     function populateStationSelects() {
       var originSel = document.getElementById('newTripOriginSelect');
       var destSel = document.getElementById('newTripDestSelect');
+      if (!originSel || !destSel) return;
       originSel.innerHTML = "";
       destSel.innerHTML = "";
 
@@ -757,6 +731,7 @@
           }
         })
         .catch(function(err) {
+          console.error("調度系統同步失敗:", err);
           document.getElementById('syncTimestamp').innerText = "連線異常";
         });
     }
@@ -770,18 +745,23 @@
 
       var tripsMap = {};
 
-      globalSchedules.filter(function(s) { return s.date === chosenDate; }).forEach(function(s) {
-        var key = s.route + "_" + s.tripTime;
+      // 容錯防呆解析
+      globalSchedules.filter(function(s) { return String(s.date) === chosenDate; }).forEach(function(s) {
+        var rStr = String(s.route || "未指定");
+        var tTime = String(s.tripTime || "00:00");
+        var key = rStr + "_" + tTime;
+        var bMatch = rStr.match(/【.+?】/);
+
         tripsMap[key] = {
-          date: s.date,
-          route: s.route,
-          tripTime: s.tripTime,
-          busId: s.busId || "",
-          driverId: s.driverId || "",
-          delayMinutes: s.delayMinutes || 0,
-          actualTime: s.actualTime || "",
-          remark: s.remark || "",
-          branch: s.route.indexOf("【") !== -1 ? s.route.match(/【.+?】/)[0] : "【主0】",
+          date: String(s.date),
+          route: rStr,
+          tripTime: tTime,
+          busId: String(s.busId || ""),
+          driverId: String(s.driverId || ""),
+          delayMinutes: parseInt(s.delayMinutes) || 0,
+          actualTime: String(s.actualTime || ""),
+          remark: String(s.remark || ""),
+          branch: bMatch ? bMatch[0] : "【主0】",
           normalCount: 0,
           qrCount: 0,
           luggageCount: 0,
@@ -789,19 +769,23 @@
         };
       });
 
-      globalTickets.filter(function(t) { return t.date === chosenDate; }).forEach(function(t) {
-        var key = t.route + "_" + t.tripTime;
+      globalTickets.filter(function(t) { return String(t.date) === chosenDate; }).forEach(function(t) {
+        var rStr = String(t.route || "未指定");
+        var tTime = String(t.tripTime || "00:00");
+        var key = rStr + "_" + tTime;
+        var bMatch = rStr.match(/【.+?】/);
+
         if (!tripsMap[key]) {
           tripsMap[key] = {
-            date: t.date,
-            route: t.route,
-            tripTime: t.tripTime,
+            date: String(t.date),
+            route: rStr,
+            tripTime: tTime,
             busId: "",
             driverId: "",
             delayMinutes: 0,
             actualTime: "",
             remark: "",
-            branch: t.route.indexOf("【") !== -1 ? t.route.match(/【.+?】/)[0] : "【主0】",
+            branch: bMatch ? bMatch[0] : "【主0】",
             normalCount: 0,
             qrCount: 0,
             luggageCount: 0,
@@ -991,7 +975,7 @@
                 "日期：" + chosenDate + "\n" +
                 "路線：" + route + "\n" +
                 "時間：" + tripTime + "\n\n" +
-                "※ 注意：此操作將一併清除該班次在雲端 Schedules 與 Tickets 所有的排班及乘客刷票紀錄！";
+                "※ 注意：此操作將一併清除該班次在雲端所有的排班及刷票紀錄！";
 
       if (!confirm(msg)) return;
 
@@ -1023,7 +1007,7 @@
         btn.innerText = "🗑️ 刪除";
         backToMobileList();
         renderSidebarList();
-        alert("班次已成功從雲端與本地端刪除！");
+        alert("班次已成功刪除！");
       }).catch(function(err) {
         alert("刪除失敗：" + err);
         btn.innerText = "🗑️ 刪除";
