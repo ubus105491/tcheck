@@ -355,12 +355,12 @@
     </section>
   </main>
 
-  <!-- 3. 新增班次彈窗 (免手打起訖站，純選單帶入) -->
+  <!-- 3. 新增班次彈窗 (支援起訖站下拉選取 + 輸入代碼首選自動帶入) -->
   <div id="createTripModal" class="modal-overlay hidden">
     <div class="modal-box">
       <h3 style="margin-top: 0; color: var(--primary);" id="createModalTitle">新增班次排班</h3>
       
-      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; margin-bottom: 12px;">
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; margin-bottom: 10px;">
         <div>
           <label>發車日期：</label>
           <input type="date" id="newTripDate">
@@ -375,23 +375,36 @@
         </div>
       </div>
 
-      <!-- 路線下拉選單 (直接包含起訖站) -->
-      <div style="margin-bottom: 12px;">
-        <label>選擇行駛路線與起訖站：</label>
-        <select id="newTripRouteSelect" style="font-size: 14px;" onchange="handlePresetRouteChange()">
-          <!-- 動態注入所有國道路線 -->
-        </select>
+      <div style="margin-bottom: 10px;">
+        <label>輸入或選取路線代碼：</label>
+        <input type="text" id="newTripRouteInput" list="presetRouteDatalist" placeholder="輸入 4 碼如 1610、1623 或點右側箭頭" oninput="handleRouteInputChange()">
+        <datalist id="presetRouteDatalist"></datalist>
       </div>
 
-      <!-- 自訂起訖站 (選取自訂時才展開) -->
-      <div id="customStationGroup" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
         <div>
-          <label>自訂起點站：</label>
-          <input type="text" id="newTripCustomOrigin" placeholder="例如: 台北轉運站">
+          <label>起點站 (可選或自訂)：</label>
+          <select id="newTripOriginSelect" onchange="handleStationSelectChange()">
+            <!-- 動態填充站點 -->
+          </select>
         </div>
         <div>
-          <label>自訂迄點站：</label>
-          <input type="text" id="newTripCustomDest" placeholder="例如: 高雄火車站">
+          <label>迄點站 (可選或自訂)：</label>
+          <select id="newTripDestSelect" onchange="handleStationSelectChange()">
+            <!-- 動態填充站點 -->
+          </select>
+        </div>
+      </div>
+
+      <!-- 自訂站點輸入框 (選取自訂時展開) -->
+      <div id="customStationInputGroup" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+        <div>
+          <label>手動輸入起點：</label>
+          <input type="text" id="customOriginInput" placeholder="例如: 台北轉運站">
+        </div>
+        <div>
+          <label>手動輸入迄點：</label>
+          <input type="text" id="customDestInput" placeholder="例如: 高雄火車站">
         </div>
       </div>
 
@@ -430,7 +443,7 @@
     var GAS_API_URL = "https://script.google.com/macros/s/AKfycbwxWZ8uKHWxO1Z1ngJ6hJZJOHlMrzz_21AcH5uuL4ALpfrLs8-6x-rXVlplspkKLLWR/exec";
     var AUTH_TOKEN = "8888";
 
-    // 內建完整國道客運路線資料庫 (起訖站直接綁定)
+    // 內建完整國道客運路線資料庫
     var ROUTE_PRESETS = [
       { code: "1610", dir: "南下", origin: "台北", dest: "高雄", desc: "【1610】南下：台北 → 高雄" },
       { code: "1610", dir: "北上", origin: "高雄", dest: "台北", desc: "【1610】北上：高雄 → 台北" },
@@ -511,8 +524,18 @@
       { code: "7000", dir: "南下", origin: "台北", dest: "斗六", desc: "【7000】南下：台北市 → 國道1號 → 斗六" },
       { code: "7000", dir: "北上", origin: "斗六", dest: "台北", desc: "【7000】北上：斗六 → 國道1號 → 台北市" },
       { code: "7005", dir: "南下", origin: "台北", dest: "民雄", desc: "【7005】南下：台北市 → 國道1號 → 民雄 (西螺接駁)" },
-      { code: "7005", dir: "北上", origin: "民雄", dest: "台北", desc: "【7005】北上：民雄 → 國道1號 → 台北市 (西螺接駁)" },
-      { code: "CUSTOM", dir: "自訂", origin: "", dest: "", desc: "➕ [自訂路線與站點]" }
+      { code: "7005", dir: "北上", origin: "民雄", dest: "台北", desc: "【7005】北上：民雄 → 國道1號 → 台北市 (西螺接駁)" }
+    ];
+
+    // 全國道所有常見站點清單
+    var ALL_STATIONS = [
+      "台北", "板橋", "新店", "松山機場", "桃園", "桃園車站後站", "桃園國際機場", "中壢服務區",
+      "台中", "高鐵台中站", "豐原", "東勢", "南投", "草屯", "竹山",
+      "彰化", "鹿港", "芳苑", "員林",
+      "嘉義", "民雄", "朴子", "東石", "布袋",
+      "斗六", "西螺", "北港", "台西", "高鐵雲林站", "四湖", "四湖鄉", "三條崙", "口湖", "林厝寮",
+      "台南", "麻豆", "佳里", "漚汪", "西港",
+      "高雄", "屏東", "羅東", "宜蘭", "宜蘭市", "自訂站點..."
     ];
 
     var globalSchedules = [];
@@ -583,21 +606,45 @@
     }
 
     function initConsole() {
-      // 填充預設路線下拉選單 (直接綁定起訖站)
-      var routeSelect = document.getElementById('newTripRouteSelect');
-      routeSelect.innerHTML = "";
-      ROUTE_PRESETS.forEach(function(item, idx) {
+      // 填充路線自動完成 DataList
+      var datalist = document.getElementById('presetRouteDatalist');
+      datalist.innerHTML = "";
+      ROUTE_PRESETS.forEach(function(item) {
         var opt = document.createElement('option');
-        opt.value = idx;
-        opt.innerText = item.desc;
-        routeSelect.appendChild(opt);
+        opt.value = item.code + " (" + item.origin + "→" + item.dest + ")";
+        datalist.appendChild(opt);
       });
+
+      // 填充起訖站下拉選單
+      populateStationSelects();
 
       var todayStr = new Date().toISOString().slice(0, 10);
       document.getElementById('navDateInput').value = todayStr;
       document.getElementById('newTripDate').value = todayStr;
 
       syncAllCloudData();
+    }
+
+    function populateStationSelects() {
+      var originSel = document.getElementById('newTripOriginSelect');
+      var destSel = document.getElementById('newTripDestSelect');
+      originSel.innerHTML = "";
+      destSel.innerHTML = "";
+
+      ALL_STATIONS.forEach(function(st) {
+        var opt1 = document.createElement('option');
+        opt1.value = st;
+        opt1.innerText = st;
+        originSel.appendChild(opt1);
+
+        var opt2 = document.createElement('option');
+        opt2.value = st;
+        opt2.innerText = st;
+        destSel.appendChild(opt2);
+      });
+
+      originSel.value = "台北";
+      destSel.value = "高雄";
     }
 
     if (sessionStorage.getItem("DISPATCH_AUTH") === "OK") {
@@ -609,13 +656,41 @@
       renderSidebarList();
     }
 
-    function handlePresetRouteChange() {
-      var select = document.getElementById('newTripRouteSelect');
-      var chosenIdx = parseInt(select.value);
-      var item = ROUTE_PRESETS[chosenIdx];
-      var customGroup = document.getElementById('customStationGroup');
+    // 當在路線輸入框鍵入代碼時，自動首選帶入起訖站下拉選單
+    function handleRouteInputChange() {
+      var raw = document.getElementById('newTripRouteInput').value.trim();
+      var codeMatch = raw.match(/\d{4}/);
+      if (!codeMatch) return;
+      var code = codeMatch[0];
 
-      if (item.code === "CUSTOM") {
+      var found = ROUTE_PRESETS.find(function(p) { return p.code === code; });
+      if (found) {
+        var originSel = document.getElementById('newTripOriginSelect');
+        var destSel = document.getElementById('newTripDestSelect');
+
+        // 自動選取首選站點
+        originSel.value = found.origin;
+        destSel.value = found.dest;
+
+        // 若預設清單未收錄，則自動切換為自訂
+        if (!originSel.value) {
+          originSel.value = "自訂站點...";
+          document.getElementById('customOriginInput').value = found.origin;
+        }
+        if (!destSel.value) {
+          destSel.value = "自訂站點...";
+          document.getElementById('customDestInput').value = found.dest;
+        }
+        handleStationSelectChange();
+      }
+    }
+
+    function handleStationSelectChange() {
+      var oVal = document.getElementById('newTripOriginSelect').value;
+      var dVal = document.getElementById('newTripDestSelect').value;
+      var customGroup = document.getElementById('customStationInputGroup');
+
+      if (oVal === "自訂站點..." || dVal === "自訂站點...") {
         customGroup.classList.remove('hidden');
       } else {
         customGroup.classList.add('hidden');
@@ -898,7 +973,6 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       }).then(function() {
-        // 從本地快取清除
         globalSchedules = globalSchedules.filter(function(s) {
           return !(s.date === chosenDate && s.route === route && s.tripTime === tripTime);
         });
@@ -927,7 +1001,7 @@
         document.getElementById('singleTimeGroup').classList.add('hidden');
         document.getElementById('batchTimeGroup').classList.remove('hidden');
       }
-      handlePresetRouteChange();
+      handleStationSelectChange();
       document.getElementById('createTripModal').classList.remove('hidden');
     }
 
@@ -939,30 +1013,23 @@
     function executeCreateTrip() {
       var targetDate = document.getElementById('newTripDate').value;
       var branchVal = document.getElementById('newTripBranch').value;
-      var select = document.getElementById('newTripRouteSelect');
-      var chosenIdx = parseInt(select.value);
-      var item = ROUTE_PRESETS[chosenIdx];
+      var rawRoute = document.getElementById('newTripRouteInput').value.trim();
+      
+      var oVal = document.getElementById('newTripOriginSelect').value;
+      var dVal = document.getElementById('newTripDestSelect').value;
 
-      var origin = item.origin;
-      var dest = item.dest;
-      var routeCode = item.code;
+      var origin = (oVal === "自訂站點...") ? document.getElementById('customOriginInput').value.trim() : oVal;
+      var dest = (dVal === "自訂站點...") ? document.getElementById('customDestInput').value.trim() : dVal;
 
-      if (routeCode === "CUSTOM") {
-        origin = document.getElementById('newTripCustomOrigin').value.trim();
-        dest = document.getElementById('newTripCustomDest').value.trim();
-        routeCode = "自訂";
-        if (!origin || !dest) {
-          alert("請輸入自訂起點與迄點站！");
-          return;
-        }
+      var codeMatch = rawRoute.match(/\d{4}/);
+      var routeCode = codeMatch ? codeMatch[0] : (rawRoute || "專車");
+
+      if (!targetDate || !origin || !dest) {
+        alert("請確認發車日期與起訖站皆已設定！");
+        return;
       }
 
       var fullRouteName = branchVal + " " + routeCode + " " + origin + "→" + dest;
-
-      if (!targetDate) {
-        alert("請確認發車日期！");
-        return;
-      }
 
       var timesToCreate = [];
       if (createModalMode === 'single') {
