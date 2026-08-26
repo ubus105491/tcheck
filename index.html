@@ -166,6 +166,7 @@
     .btn-emerald { background: var(--accent-emerald); color: #064e3b; }
     .btn-purple { background: var(--accent-purple); color: #3b0764; }
     .btn-amber { background: var(--accent-amber); color: #451a03; }
+    .btn-danger { background: var(--accent-rose); color: #fff; }
 
     /* 驗票清單表格 */
     .ticket-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
@@ -195,7 +196,7 @@
       border-radius: 12px;
       padding: 20px;
       width: 100%;
-      max-width: 460px;
+      max-width: 480px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
 
@@ -212,7 +213,7 @@
 </head>
 <body>
 
-  <!-- 0. 系統登入遮罩 (強制驗證: 2347 / 1299) -->
+  <!-- 0. 系統登入遮罩 (帳號 2347 / 密碼 1299) -->
   <div id="loginModal" class="modal-overlay">
     <div class="modal-box" style="max-width: 340px; text-align: center;">
       <h3 style="margin-top: 0; color: var(--primary);">調度系統身分驗證</h3>
@@ -266,12 +267,10 @@
         </div>
       </div>
 
-      <div class="sidebar-list" id="sidebarTripList">
-        <!-- 動態班次卡片 -->
-      </div>
+      <div class="sidebar-list" id="sidebarTripList"></div>
     </aside>
 
-    <!-- 右側：班次調度與驗票工作台 -->
+    <!-- 右側：調度與驗票工作台 -->
     <section class="right-content">
       
       <!-- 區塊 A：當前班次基本資訊與調度指派 -->
@@ -281,7 +280,10 @@
             <span id="currentTripHeading" style="font-size: 18px; font-weight: 900;">請從左側選擇班次</span>
             <span id="currentBranchTag" class="t-line-branch" style="margin-left: 6px;"></span>
           </div>
-          <button class="btn btn-emerald" id="btnSaveDispatch" onclick="saveCurrentDispatchInfo()">💾 儲存調度更新</button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-danger" id="btnDeleteTrip" onclick="confirmDeleteCurrentTrip()">🗑️ 刪除此班次</button>
+            <button class="btn btn-emerald" id="btnSaveDispatch" onclick="saveCurrentDispatchInfo()">💾 儲存調度更新</button>
+          </div>
         </div>
 
         <div class="dispatch-grid">
@@ -353,12 +355,12 @@
     </section>
   </main>
 
-  <!-- 3. 新增班次彈窗 (支援單一 / 批次排班) -->
+  <!-- 3. 新增班次彈窗 (免手打起訖站，純選單帶入) -->
   <div id="createTripModal" class="modal-overlay hidden">
     <div class="modal-box">
       <h3 style="margin-top: 0; color: var(--primary);" id="createModalTitle">新增班次排班</h3>
       
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+      <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; margin-bottom: 12px;">
         <div>
           <label>發車日期：</label>
           <input type="date" id="newTripDate">
@@ -369,25 +371,27 @@
             <option value="【主0】">【主0】主線</option>
             <option value="【支A】">【支A】支線</option>
             <option value="【支B】">【支B】支線</option>
-            <option value="自訂">自訂輸入...</option>
           </select>
         </div>
       </div>
 
-      <div style="margin-bottom: 10px;">
-        <label>選擇或輸入路線編號：</label>
-        <input type="text" id="newTripRouteInput" list="presetRouteDatalist" placeholder="輸入或選取如 1610、1623、1661..." oninput="handleRouteAutoFill()">
-        <datalist id="presetRouteDatalist"></datalist>
+      <!-- 路線下拉選單 (直接包含起訖站) -->
+      <div style="margin-bottom: 12px;">
+        <label>選擇行駛路線與起訖站：</label>
+        <select id="newTripRouteSelect" style="font-size: 14px;" onchange="handlePresetRouteChange()">
+          <!-- 動態注入所有國道路線 -->
+        </select>
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+      <!-- 自訂起訖站 (選取自訂時才展開) -->
+      <div id="customStationGroup" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
         <div>
-          <label>起點站：</label>
-          <input type="text" id="newTripOrigin" placeholder="例如: 台北">
+          <label>自訂起點站：</label>
+          <input type="text" id="newTripCustomOrigin" placeholder="例如: 台北轉運站">
         </div>
         <div>
-          <label>迄點站：</label>
-          <input type="text" id="newTripDest" placeholder="例如: 高雄">
+          <label>自訂迄點站：</label>
+          <input type="text" id="newTripCustomDest" placeholder="例如: 高雄火車站">
         </div>
       </div>
 
@@ -426,91 +430,91 @@
     var GAS_API_URL = "https://script.google.com/macros/s/AKfycbwxWZ8uKHWxO1Z1ngJ6hJZJOHlMrzz_21AcH5uuL4ALpfrLs8-6x-rXVlplspkKLLWR/exec";
     var AUTH_TOKEN = "8888";
 
-    // 內建完整國道客運路線資料庫 (支援代碼反查起訖站)
+    // 內建完整國道客運路線資料庫 (起訖站直接綁定)
     var ROUTE_PRESETS = [
-      { code: "1610", dir: "南下", origin: "台北", dest: "高雄", desc: "台北 → 高雄" },
-      { code: "1610", dir: "北上", origin: "高雄", dest: "台北", desc: "高雄 → 台北" },
-      { code: "1838", dir: "南下", origin: "台北", dest: "高雄", desc: "台北 → 高雄" },
-      { code: "1838", dir: "北上", origin: "高雄", dest: "台北", desc: "高雄 → 台北" },
-      { code: "1611", dir: "南下", origin: "台北", dest: "台南", desc: "台北 → 台南" },
-      { code: "1611", dir: "北上", origin: "台南", dest: "台北", desc: "台南 → 台北" },
-      { code: "1837", dir: "南下", origin: "台北", dest: "台南", desc: "台北 → 台南" },
-      { code: "1837", dir: "北上", origin: "台南", dest: "台北", desc: "台南 → 台北" },
-      { code: "1612", dir: "南下", origin: "台北", dest: "台南", desc: "台北 → 台南 (經國道3號)" },
-      { code: "1612", dir: "北上", origin: "台南", dest: "台北", desc: "台南 → 台北 (經國道3號)" },
-      { code: "1613", dir: "南下", origin: "台北", dest: "屏東", desc: "台北 → 屏東" },
-      { code: "1613", dir: "北上", origin: "屏東", dest: "台北", desc: "屏東 → 台北" },
-      { code: "1839", dir: "南下", origin: "台北", dest: "屏東", desc: "台北 → 屏東" },
-      { code: "1839", dir: "北上", origin: "屏東", dest: "台北", desc: "屏東 → 台北" },
-      { code: "1617", dir: "南下", origin: "台北", dest: "東勢", desc: "台北 → 豐原 → 東勢" },
-      { code: "1617", dir: "北上", origin: "東勢", dest: "台北", desc: "東勢 → 豐原 → 台北" },
-      { code: "1618", dir: "南下", origin: "台北", dest: "嘉義", desc: "台北 → 嘉義" },
-      { code: "1618", dir: "北上", origin: "嘉義", dest: "台北", desc: "嘉義 → 台北" },
-      { code: "1619", dir: "南下", origin: "台北", dest: "台中", desc: "台北 → 台中 (經中港路)" },
-      { code: "1619", dir: "北上", origin: "台中", dest: "台北", desc: "台中 → 台北 (經中港路)" },
-      { code: "1620", dir: "南下", origin: "台北", dest: "台中", desc: "台北 → 台中 (經中清路)" },
-      { code: "1620", dir: "北上", origin: "台中", dest: "台北", desc: "台中 → 台北 (經中清路)" },
-      { code: "1621", dir: "南下", origin: "台中", dest: "高雄", desc: "台中 → 高雄" },
-      { code: "1621", dir: "北上", origin: "高雄", dest: "台中", desc: "高雄 → 台中" },
-      { code: "1872", dir: "南下", origin: "台中", dest: "高雄", desc: "台中 → 高雄" },
-      { code: "1872", dir: "北上", origin: "高雄", dest: "台中", desc: "高雄 → 台中" },
-      { code: "1623", dir: "南下", origin: "桃園國際機場", dest: "台中", desc: "桃園國際機場 → 台中" },
-      { code: "1623", dir: "北上", origin: "台中", dest: "桃園國際機場", desc: "台中 → 桃園國際機場" },
-      { code: "1625", dir: "南下", origin: "台中", dest: "台南", desc: "台中 → 台南" },
-      { code: "1625", dir: "北上", origin: "台南", dest: "台中", desc: "台南 → 台中" },
-      { code: "1871", dir: "南下", origin: "台中", dest: "台南", desc: "台中 → 台南" },
-      { code: "1871", dir: "北上", origin: "台南", dest: "台中", desc: "台南 → 台中" },
-      { code: "1627", dir: "南下", origin: "桃園國際機場", dest: "中壢服務區", desc: "桃園國際機場 → 中壢服務區" },
-      { code: "1627", dir: "北上", origin: "中壢服務區", dest: "桃園國際機場", desc: "中壢服務區 → 桃園國際機場" },
-      { code: "1628", dir: "南下", origin: "台北", dest: "漚汪", desc: "台北 → 麻豆 → 佳里、漚汪" },
-      { code: "1628", dir: "北上", origin: "漚汪", dest: "台北", desc: "佳里、漚汪 → 麻豆 → 台北" },
-      { code: "1630", dir: "南下", origin: "台北", dest: "西港", desc: "台北 → 西港" },
-      { code: "1630", dir: "北上", origin: "西港", dest: "台北", desc: "西港 → 台北" },
-      { code: "1632", dir: "南下", origin: "台北", dest: "竹山", desc: "台北 → 草屯、竹山" },
-      { code: "1632", dir: "北上", origin: "竹山", dest: "台北", desc: "竹山、草屯 → 台北" },
-      { code: "1633", dir: "南下", origin: "台北", dest: "北港", desc: "台北 → 北港" },
-      { code: "1633", dir: "北上", origin: "北港", dest: "台北", desc: "北港 → 台北" },
-      { code: "1635", dir: "南下", origin: "台北", dest: "四湖鄉", desc: "台北 → 四湖鄉" },
-      { code: "1635", dir: "北上", origin: "四湖鄉", dest: "台北", desc: "四湖鄉 → 台北" },
-      { code: "1636", dir: "南下", origin: "台北", dest: "三條崙", desc: "台北 → 四湖 → 三條崙" },
-      { code: "1636", dir: "北上", origin: "三條崙", dest: "台北", desc: "三條崙 → 四湖 → 台北" },
-      { code: "1637", dir: "南下", origin: "台北", dest: "三條崙", desc: "台北 → 林厝寮 → 三條崙" },
-      { code: "1637", dir: "北上", origin: "三條崙", dest: "台北", desc: "三條崙 → 林厝寮 → 台北" },
-      { code: "1638", dir: "南下", origin: "台北", dest: "東石", desc: "台北 → 朴子、東石" },
-      { code: "1638", dir: "北上", origin: "東石", dest: "台北", desc: "東石、朴子 → 台北" },
-      { code: "1639", dir: "南下", origin: "台北", dest: "布袋", desc: "台北 → 布袋" },
-      { code: "1639", dir: "北上", origin: "布袋", dest: "台北", desc: "布袋 → 台北" },
-      { code: "1650", dir: "南下", origin: "三條崙", dest: "高雄", desc: "三條崙 → 口湖 → 北港 → 高雄 (經宜梧)" },
-      { code: "1650", dir: "北上", origin: "高雄", dest: "三條崙", desc: "高雄 → 北港 → 口湖 → 三條崙 (經宜梧)" },
-      { code: "1651", dir: "南下", origin: "三條崙", dest: "高雄", desc: "三條崙 → 北港 → 高雄 (經四湖)" },
-      { code: "1651", dir: "北上", origin: "高雄", dest: "三條崙", desc: "高雄 → 北港 → 三條崙 (經四湖)" },
-      { code: "1652", dir: "南下", origin: "台北", dest: "芳苑", desc: "台北 → 鹿港 → 芳苑" },
-      { code: "1652", dir: "北上", origin: "芳苑", dest: "台北", desc: "芳苑 → 鹿港 → 台北" },
-      { code: "1657", dir: "南下", origin: "高鐵台中站", dest: "南投", desc: "高鐵台中站 → 南投" },
-      { code: "1657", dir: "北上", origin: "南投", dest: "高鐵台中站", desc: "南投 → 高鐵台中站" },
-      { code: "1660", dir: "南下", origin: "板橋", dest: "高雄", desc: "板橋 → 高雄" },
-      { code: "1660", dir: "北上", origin: "高雄", dest: "板橋", desc: "高雄 → 板橋" },
-      { code: "1661", dir: "南下", origin: "羅東", dest: "桃園機場", desc: "羅東 - 桃園機場" },
-      { code: "1661", dir: "北上", origin: "桃園機場", dest: "羅東", desc: "桃園機場 - 羅東" },
-      { code: "1662", dir: "南下", origin: "桃園車站後站", dest: "松山機場", desc: "桃園車站後站 → 松山機場" },
-      { code: "1662", dir: "北上", origin: "松山機場", dest: "桃園車站後站", desc: "松山機場 → 桃園車站後站" },
-      { code: "1665", dir: "南下", origin: "新店", dest: "宜蘭", desc: "新北市新店區 → 宜蘭市" },
-      { code: "1665", dir: "北上", origin: "宜蘭", dest: "新店", desc: "宜蘭市 → 新北市新店區" },
-      { code: "1666", dir: "南下", origin: "台西", dest: "高鐵雲林站", desc: "台西 → 高鐵雲林站" },
-      { code: "1666", dir: "北上", origin: "高鐵雲林站", dest: "台西", desc: "高鐵雲林站 → 台西" },
-      { code: "1667", dir: "南下", origin: "台北", dest: "台中", desc: "台北 → 台中 (經國道3號)" },
-      { code: "1667", dir: "北上", origin: "台中", dest: "台北", desc: "台中 → 台北 (經國道3號)" },
-      { code: "1862", dir: "南下", origin: "桃園", dest: "高雄", desc: "桃園 → 高雄" },
-      { code: "1862", dir: "北上", origin: "高雄", dest: "桃園", desc: "高雄 → 桃園" },
-      { code: "1873", dir: "南下", origin: "台中", dest: "屏東", desc: "台中 → 屏東" },
-      { code: "1873", dir: "北上", origin: "屏東", dest: "台中", desc: "屏東 → 台中" },
-      { code: "7000", dir: "南下", origin: "台北", dest: "斗六", desc: "台北市 → 國道1號 → 斗六" },
-      { code: "7000", dir: "北上", origin: "斗六", dest: "台北", desc: "斗六 → 國道1號 → 台北市" },
-      { code: "7005", dir: "南下", origin: "台北", dest: "民雄", desc: "台北市 → 國道1號 → 民雄 (西螺接駁)" },
-      { code: "7005", dir: "北上", origin: "民雄", dest: "台北", desc: "民雄 → 國道1號 → 台北市 (西螺接駁)" }
+      { code: "1610", dir: "南下", origin: "台北", dest: "高雄", desc: "【1610】南下：台北 → 高雄" },
+      { code: "1610", dir: "北上", origin: "高雄", dest: "台北", desc: "【1610】北上：高雄 → 台北" },
+      { code: "1838", dir: "南下", origin: "台北", dest: "高雄", desc: "【1838】南下：台北 → 高雄" },
+      { code: "1838", dir: "北上", origin: "高雄", dest: "台北", desc: "【1838】北上：高雄 → 台北" },
+      { code: "1611", dir: "南下", origin: "台北", dest: "台南", desc: "【1611】南下：台北 → 台南" },
+      { code: "1611", dir: "北上", origin: "台南", dest: "台北", desc: "【1611】北上：台南 → 台北" },
+      { code: "1837", dir: "南下", origin: "台北", dest: "台南", desc: "【1837】南下：台北 → 台南" },
+      { code: "1837", dir: "北上", origin: "台南", dest: "台北", desc: "【1837】北上：台南 → 台北" },
+      { code: "1612", dir: "南下", origin: "台北", dest: "台南", desc: "【1612】南下：台北 → 台南 (經國道3號)" },
+      { code: "1612", dir: "北上", origin: "台南", dest: "台北", desc: "【1612】北上：台南 → 台北 (經國道3號)" },
+      { code: "1613", dir: "南下", origin: "台北", dest: "屏東", desc: "【1613】南下：台北 → 屏東" },
+      { code: "1613", dir: "北上", origin: "屏東", dest: "台北", desc: "【1613】北上：屏東 → 台北" },
+      { code: "1839", dir: "南下", origin: "台北", dest: "屏東", desc: "【1839】南下：台北 → 屏東" },
+      { code: "1839", dir: "北上", origin: "屏東", dest: "台北", desc: "【1839】北上：屏東 → 台北" },
+      { code: "1617", dir: "南下", origin: "台北", dest: "東勢", desc: "【1617】南下：台北 → 豐原 → 東勢" },
+      { code: "1617", dir: "北上", origin: "東勢", dest: "台北", desc: "【1617】北上：東勢 → 豐原 → 台北" },
+      { code: "1618", dir: "南下", origin: "台北", dest: "嘉義", desc: "【1618】南下：台北 → 嘉義" },
+      { code: "1618", dir: "北上", origin: "嘉義", dest: "台北", desc: "【1618】北上：嘉義 → 台北" },
+      { code: "1619", dir: "南下", origin: "台北", dest: "台中", desc: "【1619】南下：台北 → 台中 (經中港路)" },
+      { code: "1619", dir: "北上", origin: "台中", dest: "台北", desc: "【1619】北上：台中 → 台北 (經中港路)" },
+      { code: "1620", dir: "南下", origin: "台北", dest: "台中", desc: "【1620】南下：台北 → 台中 (經中清路)" },
+      { code: "1620", dir: "北上", origin: "台中", dest: "台北", desc: "【1620】北上：台中 → 台北 (經中清路)" },
+      { code: "1621", dir: "南下", origin: "台中", dest: "高雄", desc: "【1621】南下：台中 → 高雄" },
+      { code: "1621", dir: "北上", origin: "高雄", dest: "台中", desc: "【1621】北上：高雄 → 台中" },
+      { code: "1872", dir: "南下", origin: "台中", dest: "高雄", desc: "【1872】南下：台中 → 高雄" },
+      { code: "1872", dir: "北上", origin: "高雄", dest: "台中", desc: "【1872】北上：高雄 → 台中" },
+      { code: "1623", dir: "南下", origin: "桃園國際機場", dest: "台中", desc: "【1623】南下：桃園國際機場 → 台中" },
+      { code: "1623", dir: "北上", origin: "台中", dest: "桃園國際機場", desc: "【1623】北上：台中 → 桃園國際機場" },
+      { code: "1625", dir: "南下", origin: "台中", dest: "台南", desc: "【1625】南下：台中 → 台南" },
+      { code: "1625", dir: "北上", origin: "台南", dest: "台中", desc: "【1625】北上：台南 → 台中" },
+      { code: "1871", dir: "南下", origin: "台中", dest: "台南", desc: "【1871】南下：台中 → 台南" },
+      { code: "1871", dir: "北上", origin: "台南", dest: "台中", desc: "【1871】北上：台南 → 台中" },
+      { code: "1627", dir: "南下", origin: "桃園國際機場", dest: "中壢服務區", desc: "【1627】南下：桃園國際機場 → 中壢服務區" },
+      { code: "1627", dir: "北上", origin: "中壢服務區", dest: "桃園國際機場", desc: "【1627】北上：中壢服務區 → 桃園國際機場" },
+      { code: "1628", dir: "南下", origin: "台北", dest: "漚汪", desc: "【1628】南下：台北 → 麻豆 → 佳里、漚汪" },
+      { code: "1628", dir: "北上", origin: "漚汪", dest: "台北", desc: "【1628】北上：佳里、漚汪 → 麻豆 → 台北" },
+      { code: "1630", dir: "南下", origin: "台北", dest: "西港", desc: "【1630】南下：台北 → 西港" },
+      { code: "1630", dir: "北上", origin: "西港", dest: "台北", desc: "【1630】北上：西港 → 台北" },
+      { code: "1632", dir: "南下", origin: "台北", dest: "竹山", desc: "【1632】南下：台北 → 草屯、竹山" },
+      { code: "1632", dir: "北上", origin: "竹山", dest: "台北", desc: "【1632】北上：竹山、草屯 → 台北" },
+      { code: "1633", dir: "南下", origin: "台北", dest: "北港", desc: "【1633】南下：台北 → 北港" },
+      { code: "1633", dir: "北上", origin: "北港", dest: "台北", desc: "【1633】北上：北港 → 台北" },
+      { code: "1635", dir: "南下", origin: "台北", dest: "四湖鄉", desc: "【1635】南下：台北 → 四湖鄉" },
+      { code: "1635", dir: "北上", origin: "四湖鄉", dest: "台北", desc: "【1635】北上：四湖鄉 → 台北" },
+      { code: "1636", dir: "南下", origin: "台北", dest: "三條崙", desc: "【1636】南下：台北 → 四湖 → 三條崙" },
+      { code: "1636", dir: "北上", origin: "三條崙", dest: "台北", desc: "【1636】北上：三條崙 → 四湖 → 台北" },
+      { code: "1637", dir: "南下", origin: "台北", dest: "三條崙", desc: "【1637】南下：台北 → 林厝寮 → 三條崙" },
+      { code: "1637", dir: "北上", origin: "三條崙", dest: "台北", desc: "【1637】北上：三條崙 → 林厝寮 → 台北" },
+      { code: "1638", dir: "南下", origin: "台北", dest: "東石", desc: "【1638】南下：台北 → 朴子、東石" },
+      { code: "1638", dir: "北上", origin: "東石", dest: "台北", desc: "【1638】北上：東石、朴子 → 台北" },
+      { code: "1639", dir: "南下", origin: "台北", dest: "布袋", desc: "【1639】南下：台北 → 布袋" },
+      { code: "1639", dir: "北上", origin: "布袋", dest: "台北", desc: "【1639】北上：布袋 → 台北" },
+      { code: "1650", dir: "南下", origin: "三條崙", dest: "高雄", desc: "【1650】南下：三條崙 → 口湖 → 北港 → 高雄 (經宜梧)" },
+      { code: "1650", dir: "北上", origin: "高雄", dest: "三條崙", desc: "【1650】北上：高雄 → 北港 → 口湖 → 三條崙 (經宜梧)" },
+      { code: "1651", dir: "南下", origin: "三條崙", dest: "高雄", desc: "【1651】南下：三條崙 → 北港 → 高雄 (經四湖)" },
+      { code: "1651", dir: "北上", origin: "高雄", dest: "三條崙", desc: "【1651】北上：高雄 → 北港 → 三條崙 (經四湖)" },
+      { code: "1652", dir: "南下", origin: "台北", dest: "芳苑", desc: "【1652】南下：台北 → 鹿港 → 芳苑" },
+      { code: "1652", dir: "北上", origin: "芳苑", dest: "台北", desc: "【1652】北上：芳苑 → 鹿港 → 台北" },
+      { code: "1657", dir: "南下", origin: "高鐵台中站", dest: "南投", desc: "【1657】南下：高鐵台中站 → 南投" },
+      { code: "1657", dir: "北上", origin: "南投", dest: "高鐵台中站", desc: "【1657】北上：南投 → 高鐵台中站" },
+      { code: "1660", dir: "南下", origin: "板橋", dest: "高雄", desc: "【1660】南下：板橋 → 高雄" },
+      { code: "1660", dir: "北上", origin: "高雄", dest: "板橋", desc: "【1660】北上：高雄 → 板橋" },
+      { code: "1661", dir: "南下", origin: "羅東", dest: "桃園機場", desc: "【1661】南下：羅東 → 桃園機場" },
+      { code: "1661", dir: "北上", origin: "桃園機場", dest: "羅東", desc: "【1661】北上：桃園機場 → 羅東" },
+      { code: "1662", dir: "南下", origin: "桃園車站後站", dest: "松山機場", desc: "【1662】南下：桃園車站後站 → 松山機場" },
+      { code: "1662", dir: "北上", origin: "松山機場", dest: "桃園車站後站", desc: "【1662】北上：松山機場 → 桃園車站後站" },
+      { code: "1665", dir: "南下", origin: "新店", dest: "宜蘭", desc: "【1665】南下：新北市新店區 → 宜蘭市" },
+      { code: "1665", dir: "北上", origin: "宜蘭", dest: "新店", desc: "【1665】北上：宜蘭市 → 新北市新店區" },
+      { code: "1666", dir: "南下", origin: "台西", dest: "高鐵雲林站", desc: "【1666】南下：台西 → 高鐵雲林站" },
+      { code: "1666", dir: "北上", origin: "高鐵雲林站", dest: "台西", desc: "【1666】北上：高鐵雲林站 → 台西" },
+      { code: "1667", dir: "南下", origin: "台北", dest: "台中", desc: "【1667】南下：台北 → 台中 (經國道3號)" },
+      { code: "1667", dir: "北上", origin: "台中", dest: "台北", desc: "【1667】北上：台中 → 台北 (經國道3號)" },
+      { code: "1862", dir: "南下", origin: "桃園", dest: "高雄", desc: "【1862】南下：桃園 → 高雄" },
+      { code: "1862", dir: "北上", origin: "高雄", dest: "桃園", desc: "【1862】北上：高雄 → 桃園" },
+      { code: "1873", dir: "南下", origin: "台中", dest: "屏東", desc: "【1873】南下：台中 → 屏東" },
+      { code: "1873", dir: "北上", origin: "屏東", dest: "台中", desc: "【1873】北上：屏東 → 台中" },
+      { code: "7000", dir: "南下", origin: "台北", dest: "斗六", desc: "【7000】南下：台北市 → 國道1號 → 斗六" },
+      { code: "7000", dir: "北上", origin: "斗六", dest: "台北", desc: "【7000】北上：斗六 → 國道1號 → 台北市" },
+      { code: "7005", dir: "南下", origin: "台北", dest: "民雄", desc: "【7005】南下：台北市 → 國道1號 → 民雄 (西螺接駁)" },
+      { code: "7005", dir: "北上", origin: "民雄", dest: "台北", desc: "【7005】北上：民雄 → 國道1號 → 台北市 (西螺接駁)" },
+      { code: "CUSTOM", dir: "自訂", origin: "", dest: "", desc: "➕ [自訂路線與站點]" }
     ];
 
-    // 全域狀態庫
     var globalSchedules = [];
     var globalTickets = [];
     var activeTripKey = "";
@@ -565,7 +569,7 @@
       return { draw: draw };
     })();
 
-    // 登入驗證 (帳號 2347 / 密碼 1299)
+    // 登入驗證
     function executeLogin() {
       var u = document.getElementById('loginUser').value.trim();
       var p = document.getElementById('loginPass').value.trim();
@@ -579,16 +583,16 @@
     }
 
     function initConsole() {
-      // 填充預設路線 DataList
-      var datalist = document.getElementById('presetRouteDatalist');
-      datalist.innerHTML = "";
-      ROUTE_PRESETS.forEach(function(item) {
+      // 填充預設路線下拉選單 (直接綁定起訖站)
+      var routeSelect = document.getElementById('newTripRouteSelect');
+      routeSelect.innerHTML = "";
+      ROUTE_PRESETS.forEach(function(item, idx) {
         var opt = document.createElement('option');
-        opt.value = item.code + " (" + item.origin + "→" + item.dest + ")";
-        datalist.appendChild(opt);
+        opt.value = idx;
+        opt.innerText = item.desc;
+        routeSelect.appendChild(opt);
       });
 
-      // 初始化當前日期
       var todayStr = new Date().toISOString().slice(0, 10);
       document.getElementById('navDateInput').value = todayStr;
       document.getElementById('newTripDate').value = todayStr;
@@ -596,7 +600,6 @@
       syncAllCloudData();
     }
 
-    // 檢查登入狀態
     if (sessionStorage.getItem("DISPATCH_AUTH") === "OK") {
       document.getElementById('loginModal').classList.add('hidden');
       initConsole();
@@ -606,17 +609,16 @@
       renderSidebarList();
     }
 
-    // 路線輸入自動辨識起訖站
-    function handleRouteAutoFill() {
-      var raw = document.getElementById('newTripRouteInput').value.trim();
-      var codeMatch = raw.match(/\d{4}/);
-      if (!codeMatch) return;
-      var code = codeMatch[0];
+    function handlePresetRouteChange() {
+      var select = document.getElementById('newTripRouteSelect');
+      var chosenIdx = parseInt(select.value);
+      var item = ROUTE_PRESETS[chosenIdx];
+      var customGroup = document.getElementById('customStationGroup');
 
-      var found = ROUTE_PRESETS.find(function(p) { return p.code === code; });
-      if (found) {
-        document.getElementById('newTripOrigin').value = found.origin;
-        document.getElementById('newTripDest').value = found.dest;
+      if (item.code === "CUSTOM") {
+        customGroup.classList.remove('hidden');
+      } else {
+        customGroup.classList.add('hidden');
       }
     }
 
@@ -654,10 +656,8 @@
       var listContainer = document.getElementById('sidebarTripList');
       listContainer.innerHTML = "";
 
-      // 1. 篩選當日班次 (合併 Schedules 與 Tickets 的班次)
       var tripsMap = {};
 
-      // 載入 Schedules
       globalSchedules.filter(function(s) { return s.date === chosenDate; }).forEach(function(s) {
         var key = s.route + "_" + s.tripTime;
         tripsMap[key] = {
@@ -677,7 +677,6 @@
         };
       });
 
-      // 載入 Tickets
       globalTickets.filter(function(t) { return t.date === chosenDate; }).forEach(function(t) {
         var key = t.route + "_" + t.tripTime;
         if (!tripsMap[key]) {
@@ -712,14 +711,12 @@
         return;
       }
 
-      // 排序
       tripKeys.sort(function(a, b) {
         if (sortMode === "time_asc") return (tripsMap[a].tripTime || "").localeCompare(tripsMap[b].tripTime || "");
         if (sortMode === "time_desc") return (tripsMap[b].tripTime || "").localeCompare(tripsMap[a].tripTime || "");
         return (tripsMap[a].route || "").localeCompare(tripsMap[b].route || "");
       });
 
-      // 關鍵字搜尋過濾
       tripKeys.forEach(function(key) {
         var trip = tripsMap[key];
         var textCorpus = (trip.route + " " + trip.tripTime + " " + trip.busId + " " + trip.driverId).toLowerCase();
@@ -756,7 +753,6 @@
         listContainer.appendChild(card);
       });
 
-      // 預設選取第一筆
       if (!activeTripKey || !tripsMap[activeTripKey]) {
         if (tripKeys.length > 0) {
           activeTripKey = tripKeys[0];
@@ -785,7 +781,6 @@
       document.getElementById('sumQr').innerText = trip.qrCount;
       document.getElementById('sumLuggage').innerText = trip.luggageCount;
 
-      // 渲染驗票流水
       var tBody = document.getElementById('ticketTableBody');
       tBody.innerHTML = "";
 
@@ -824,7 +819,7 @@
       document.getElementById('ticketTableBody').innerHTML = "<tr><td colspan='5' style='text-align: center; color: var(--text-sub); padding: 20px;'>無資料</td></tr>";
     }
 
-    // 儲存當前班次調度資訊至 GAS Schedules
+    // 儲存調度更新
     function saveCurrentDispatchInfo() {
       if (!activeTripKey) return;
       var chosenDate = document.getElementById('navDateInput').value;
@@ -857,7 +852,6 @@
         btn.innerText = "✓ 已儲存";
         setTimeout(function() { btn.innerText = "💾 儲存調度更新"; }, 1500);
         
-        // 更新本地快取
         var found = globalSchedules.find(function(s) { return s.date === chosenDate && s.route === route && s.tripTime === tripTime; });
         if (found) {
           Object.assign(found, payload);
@@ -868,6 +862,57 @@
       }).catch(function(err) {
         alert("儲存失敗：" + err);
         btn.innerText = "💾 儲存調度更新";
+      });
+    }
+
+    // 刪除班次 (包含關聯票券)
+    function confirmDeleteCurrentTrip() {
+      if (!activeTripKey) return;
+      var chosenDate = document.getElementById('navDateInput').value;
+      var parts = activeTripKey.split("_");
+      var route = parts[0];
+      var tripTime = parts[1];
+
+      var msg = "⚠️ 確定要刪除以下班次嗎？\n\n" +
+                "日期：" + chosenDate + "\n" +
+                "路線：" + route + "\n" +
+                "時間：" + tripTime + "\n\n" +
+                "※ 注意：此操作將一併清除該班次在雲端 Schedules 與 Tickets 所有的排班及乘客刷票紀錄！";
+
+      if (!confirm(msg)) return;
+
+      var payload = {
+        token: AUTH_TOKEN,
+        action: "deleteSchedule",
+        date: chosenDate,
+        route: route,
+        tripTime: tripTime
+      };
+
+      var btn = document.getElementById('btnDeleteTrip');
+      btn.innerText = "刪除中...";
+
+      fetch(GAS_API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).then(function() {
+        // 從本地快取清除
+        globalSchedules = globalSchedules.filter(function(s) {
+          return !(s.date === chosenDate && s.route === route && s.tripTime === tripTime);
+        });
+        globalTickets = globalTickets.filter(function(t) {
+          return !(t.date === chosenDate && t.route === route && t.tripTime === tripTime);
+        });
+
+        activeTripKey = "";
+        btn.innerText = "🗑️ 刪除此班次";
+        renderSidebarList();
+        alert("班次已成功從雲端與本地端刪除！");
+      }).catch(function(err) {
+        alert("刪除失敗：" + err);
+        btn.innerText = "🗑️ 刪除此班次";
       });
     }
 
@@ -882,6 +927,7 @@
         document.getElementById('singleTimeGroup').classList.add('hidden');
         document.getElementById('batchTimeGroup').classList.remove('hidden');
       }
+      handlePresetRouteChange();
       document.getElementById('createTripModal').classList.remove('hidden');
     }
 
@@ -889,20 +935,32 @@
       document.getElementById('createTripModal').classList.add('hidden');
     }
 
-    // 執行排班新增 (單一 / 批次)
+    // 執行排班建立
     function executeCreateTrip() {
       var targetDate = document.getElementById('newTripDate').value;
       var branchVal = document.getElementById('newTripBranch').value;
-      var rawRoute = document.getElementById('newTripRouteInput').value.trim();
-      var origin = document.getElementById('newTripOrigin').value.trim();
-      var dest = document.getElementById('newTripDest').value.trim();
+      var select = document.getElementById('newTripRouteSelect');
+      var chosenIdx = parseInt(select.value);
+      var item = ROUTE_PRESETS[chosenIdx];
 
-      var codeMatch = rawRoute.match(/\d{4}/);
-      var code = codeMatch ? codeMatch[0] : rawRoute;
-      var fullRouteName = branchVal + " " + code + " " + origin + "→" + dest;
+      var origin = item.origin;
+      var dest = item.dest;
+      var routeCode = item.code;
 
-      if (!targetDate || !code || !origin || !dest) {
-        alert("請確認發車日期、路線編號與起訖站已完整輸入！");
+      if (routeCode === "CUSTOM") {
+        origin = document.getElementById('newTripCustomOrigin').value.trim();
+        dest = document.getElementById('newTripCustomDest').value.trim();
+        routeCode = "自訂";
+        if (!origin || !dest) {
+          alert("請輸入自訂起點與迄點站！");
+          return;
+        }
+      }
+
+      var fullRouteName = branchVal + " " + routeCode + " " + origin + "→" + dest;
+
+      if (!targetDate) {
+        alert("請確認發車日期！");
         return;
       }
 
@@ -944,7 +1002,6 @@
         };
       });
 
-      // 同步寫入 GAS
       fetch(GAS_API_URL, {
         method: "POST",
         mode: "no-cors",
@@ -991,7 +1048,6 @@
       document.getElementById('qrModal').classList.add('hidden');
     }
 
-    // 快捷鍵支援
     window.addEventListener('keydown', function(e) {
       if (e.key === "Escape") {
         closeCreateTripModal();
