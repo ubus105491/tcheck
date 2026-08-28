@@ -38,9 +38,8 @@
     }
 
     .container {
-      max-width: 1000px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding-bottom: 40px;
     }
 
     .card {
@@ -56,15 +55,14 @@
     label { font-size: 13px; font-weight: bold; color: var(--sub); display: block; margin-bottom: 4px; }
     input[type="text"], input[type="date"], input[type="time"], input[type="number"], select, textarea {
       width: 100%;
-      padding: 10px;
+      padding: 9px 10px;
       border: 1.5px solid var(--border);
       border-radius: 8px;
-      font-size: 15px;
+      font-size: 14px;
       outline: none;
       background: var(--surface);
       color: var(--text);
       font-weight: bold;
-      margin-bottom: 8px;
     }
 
     .btn {
@@ -112,72 +110,38 @@
       margin-bottom: 12px;
     }
 
-    /* 班次清單卡片排版 (手機專屬優化) */
-    .schedule-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .schedule-item {
+    /* 原本的表格樣式 */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
       background: var(--surface);
-      border: 1.5px solid var(--border);
-      border-radius: 10px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: relative;
+      margin-top: 8px;
+      -webkit-overflow-scrolling: touch;
     }
 
-    .schedule-item.is-departed {
-      background: #f8fafc;
-      opacity: 0.85;
-      border-left: 5px solid var(--purple);
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+      white-space: nowrap;
     }
 
-    .schedule-item.is-pending {
-      border-left: 5px solid var(--primary);
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .item-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .item-title {
-      font-size: 16px;
-      font-weight: 900;
-    }
-
-    .item-time {
-      font-family: monospace;
-      font-size: 18px;
-      font-weight: 900;
-      color: var(--primary);
-    }
-
-    .item-fields-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-
-    .item-field-box {
+    th {
       background: #f1f5f9;
-      padding: 6px 8px;
-      border-radius: 6px;
-      font-size: 12px;
+      color: var(--sub);
+      font-weight: bold;
     }
-    .item-field-label { color: var(--sub); font-size: 11px; margin-bottom: 2px; }
-    .item-field-value { font-weight: bold; color: var(--text); }
 
-    .item-footer-btns {
-      display: flex;
-      gap: 6px;
-      margin-top: 4px;
+    tr:last-child td {
+      border-bottom: none;
     }
 
     .tag-badge {
@@ -239,7 +203,7 @@
       <label>調度備註：</label>
       <textarea id="modalRemark" rows="2" placeholder="例：支援車、加班車"></textarea>
 
-      <div style="display:flex; gap:8px; margin-top:10px;">
+      <div style="display:flex; gap:8px; margin-top:12px;">
         <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
         <button class="btn btn-success" onclick="saveScheduleFromModal()">儲存更新</button>
       </div>
@@ -275,13 +239,29 @@
       </div>
     </div>
 
-    <!-- 班次清單 -->
+    <!-- 原本的表格清單 -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin: 14px 4px 6px 4px;">
       <h3 style="margin:0; font-size:16px;">當日調度排班表</h3>
       <span id="tripCountBadge" style="font-size:12px; font-weight:bold; color:var(--sub);">0 班次</span>
     </div>
 
-    <div id="scheduleContainer" class="schedule-list"></div>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>班次時間</th>
+            <th>路線</th>
+            <th>車號</th>
+            <th>駕駛</th>
+            <th>載客數</th>
+            <th>狀態/實發</th>
+            <th>備註</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleTableBody"></tbody>
+      </table>
+    </div>
 
   </div>
 
@@ -337,27 +317,25 @@
 
     function renderList() {
       var qDate = document.getElementById('queryDate').value;
-      var container = document.getElementById('scheduleContainer');
-      container.innerHTML = "";
+      var tbody = document.getElementById('scheduleTableBody');
+      tbody.innerHTML = "";
 
       var daySchedules = cachedSchedules.filter(function(s) { return s.date === qDate; });
       document.getElementById('tripCountBadge').innerText = daySchedules.length + " 班次";
 
       if (daySchedules.length === 0) {
-        container.innerHTML = "<div style='text-align:center; padding:30px; color:var(--sub); font-size:14px; background:#fff; border-radius:10px; border:1px dashed var(--border);'>本日尚無任何排班紀錄</div>";
+        tbody.innerHTML = "<tr><td colspan='8' style='text-align:center; padding:30px; color:var(--sub);'>本日尚無任何排班紀錄</td></tr>";
         return;
       }
 
-      // 嚴格依發車時間由早到晚排序
+      // 依發車時間升序排序
       daySchedules.sort(function(a, b) {
         return (a.tripTime || "").localeCompare(b.tripTime || "");
       });
 
       daySchedules.forEach(function(s, idx) {
         var isDeparted = s.actualTime && s.actualTime.trim() !== "";
-        var card = document.createElement('div');
-        card.className = "schedule-item " + (isDeparted ? "is-departed" : "is-pending");
-
+        
         // 統計該班次刷票人數
         var passCount = 0;
         cachedTickets.forEach(function(t) {
@@ -367,26 +345,24 @@
         });
 
         var statusTag = isDeparted 
-          ? "<span class='tag-badge tag-departed'>已實發 " + s.actualTime + "</span>"
-          : (s.delayMinutes > 0 ? "<span class='tag-badge tag-delay'>延後 +" + s.delayMinutes + "分</span>" : "<span class='tag-badge tag-pending'>登車/等待中</span>");
+          ? "<span class='tag-badge tag-departed'>實發 " + s.actualTime + "</span>"
+          : (s.delayMinutes > 0 ? "<span class='tag-badge tag-delay'>延後 +" + s.delayMinutes + "m</span>" : "<span class='tag-badge tag-pending'>登車中</span>");
 
-        card.innerHTML = 
-          "<div class='item-top'>" +
-            "<div class='item-title'>[" + s.route + "] " + statusTag + "</div>" +
-            "<div class='item-time'>" + s.tripTime + "</div>" +
-          "</div>" +
-          "<div class='item-fields-grid'>" +
-            "<div class='item-field-box'><div class='item-field-label'>指派車號</div><div class='item-field-value'>" + (s.busId || "未指派") + "</div></div>" +
-            "<div class='item-field-box'><div class='item-field-label'>指派駕駛</div><div class='item-field-value'>" + (s.driverId || "未指派") + "</div></div>" +
-            "<div class='item-field-box'><div class='item-field-label'>目前載客</div><div class='item-field-value' style='color:#10b981;'>" + passCount + " 人</div></div>" +
-            "<div class='item-field-box'><div class='item-field-label'>調度備註</div><div class='item-field-value'>" + (s.remark || "-") + "</div></div>" +
-          "</div>" +
-          "<div class='item-footer-btns'>" +
-            "<button class='btn btn-secondary' style='padding:6px;' onclick='openEditModal(" + idx + ")'>✏️ 指派/編輯</button>" +
-            "<button class='btn btn-danger' style='width:auto; padding:6px 12px;' onclick='deleteTrip(\"" + s.date + "\", \"" + s.route + "\", \"" + s.tripTime + "\")'>刪除</button>" +
-          "</div>";
+        var tr = document.createElement('tr');
+        tr.innerHTML = 
+          "<td style='font-family:monospace; font-weight:bold; font-size:15px; color:var(--primary);'>" + s.tripTime + "</td>" +
+          "<td><b>" + s.route + "</b></td>" +
+          "<td>" + (s.busId || "<span style='color:var(--sub);'>-</span>") + "</td>" +
+          "<td>" + (s.driverId || "<span style='color:var(--sub);'>-</span>") + "</td>" +
+          "<td style='font-weight:bold; color:#10b981;'>" + passCount + " 人</td>" +
+          "<td>" + statusTag + "</td>" +
+          "<td style='color:var(--sub); font-size:12px;'>" + (s.remark || "-") + "</td>" +
+          "<td>" +
+            "<button class='btn btn-secondary' style='width:auto; padding:4px 8px; font-size:12px; margin-right:4px;' onclick='openEditModal(" + idx + ")'>指派</button>" +
+            "<button class='btn btn-danger' style='width:auto; padding:4px 8px; font-size:12px;' onclick='deleteTrip(\"" + s.date + "\", \"" + s.route + "\", \"" + s.tripTime + "\")'>刪除</button>" +
+          "</td>";
 
-        container.appendChild(card);
+        tbody.appendChild(tr);
       });
     }
 
